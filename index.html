@@ -1031,7 +1031,7 @@
         <button class="btn btn-primary btn-video" id="btnSaveVideo" type="button" disabled data-i18n="videoSaveBtn">🎥 Lưu MP4 khung động</button>
       </div>
       <div class="video-export-progress" aria-hidden="true"><div class="video-export-bar" id="videoExportBar"></div></div>
-      <p class="video-export-status" id="videoExportStatus">Khung 4 ô chuyển động · 30 FPS · MP4 H.264 chất lượng cao · 15 giây</p>
+      <p class="video-export-status" id="videoExportStatus">Khung 4 ô chuyển động · 30 FPS · MP4 H.264 chất lượng cao, tối ưu iPhone · 15 giây</p>
       <button class="btn btn-danger btn-block" id="btnRetake" data-i18n="retakeBtn">↺ Chụp lại</button>
     </div>
   </section>
@@ -1087,7 +1087,7 @@ const I18N = {
     videoWorkingBtn:"⏳ Đang tạo MP4…",
     videoMobileFallback:"Đang dùng chế độ tương thích iPhone/iPad để tạo MP4…",
     videoMobileRetry:"Đang thử bộ mã hoá MP4 tương thích hơn…",
-    videoStatusIdle:(sec)=>`Khung 4 ô chuyển động · 30 FPS · MP4 H.264 chất lượng cao · ${sec} giây`,
+    videoStatusIdle:(sec)=>`Khung 4 ô chuyển động · 30 FPS · MP4 H.264 chất lượng cao, tối ưu iPhone · ${sec} giây`,
     progressIdle:"Chưa có ảnh nào",
     progressDone:"Đã chụp đủ 4 ảnh 🎉",
     progressCount:(n)=>`Đã có ${n}/4 ảnh`,
@@ -1277,8 +1277,18 @@ const IS_MOBILE_DEVICE = IS_IOS_MOBILE || IS_ANDROID_MOBILE;
 // - Mỗi lần chụp ghi một video nén bằng MediaRecorder ngay từ camera.
 // - Không giữ hàng trăm canvas thô trong RAM.
 // - MP4 cuối luôn xuất 30 FPS với H.264.
-const CAMERA_CLIP_FPS = 30;
-const CAMERA_CLIP_BITRATE = IS_IOS_MOBILE ? 9000000 : (IS_ANDROID_MOBILE ? 10000000 : 12000000);
+const CAMERA_CLIP_FPS=30;
+
+// Each final iOS slot is about 230×170 px in a 720×1080 video.
+// A 480×360 source is therefore still more than 2× the visible slot resolution,
+// while four clips can be decoded together without choking Safari.
+const CAMERA_CLIP_PROFILE=IS_IOS_MOBILE
+  ? {width:480,height:360,bitrate:4500000}
+  : (IS_ANDROID_MOBILE
+      ? {width:640,height:480,bitrate:6500000}
+      : {width:960,height:540,bitrate:9000000});
+
+const CAMERA_CLIP_BITRATE=CAMERA_CLIP_PROFILE.bitrate;
 
 function getMotionClipSeconds(){
   const sec=Number(captureDelay)||5;
@@ -1403,6 +1413,51 @@ function cameraClipMimeCandidates(){
   return [...new Set([...supported,...unknown])];
 }
 
+async function createShotRecordingStream(){
+  if(!stream) throw new Error('CAMERA_STREAM_MISSING');
+
+  const sourceTrack=stream.getVideoTracks()[0];
+  if(!sourceTrack) throw new Error('CAMERA_TRACK_MISSING');
+
+  let recordTrack=null;
+  let ownsTrack=false;
+
+  try{
+    recordTrack=sourceTrack.clone();
+    ownsTrack=true;
+
+    if(typeof recordTrack.applyConstraints==='function'){
+      await recordTrack.applyConstraints({
+        width:{
+          ideal:CAMERA_CLIP_PROFILE.width,
+          max:CAMERA_CLIP_PROFILE.width
+        },
+        height:{
+          ideal:CAMERA_CLIP_PROFILE.height,
+          max:CAMERA_CLIP_PROFILE.height
+        },
+        frameRate:{
+          ideal:CAMERA_CLIP_FPS,
+          min:24,
+          max:CAMERA_CLIP_FPS
+        }
+      });
+    }
+  }catch(e){
+    if(recordTrack && ownsTrack){
+      try{ recordTrack.stop(); }catch(stopError){}
+    }
+    recordTrack=sourceTrack;
+    ownsTrack=false;
+  }
+
+  return {
+    mediaStream:new MediaStream([recordTrack]),
+    recordTrack,
+    ownsTrack
+  };
+}
+
 function createCameraClipRecorder(mediaStream){
   if(!mediaStream || !('MediaRecorder' in window)){
     throw new Error('NO_CAMERA_MEDIARECORDER');
@@ -1462,22 +1517,19 @@ async function startShotClipRecorder(){
   if(!stream) return null;
 
   try{
-    const made=createCameraClipRecorder(stream);
+    const recordingSource=await createShotRecordingStream();
+    const made=createCameraClipRecorder(recordingSource.mediaStream);
     const recorder=made.recorder;
     const chunks=[];
-    let recorderError=null;
 
     const started=new Promise(resolve=>{
       recorder.onstart=()=>resolve(true);
-      setTimeout(()=>resolve(recorder.state==='recording'),450);
+      setTimeout(()=>resolve(recorder.state==='recording'),500);
     });
 
     const stopped=new Promise((resolve,reject)=>{
       recorder.onstop=resolve;
-      recorder.onerror=e=>{
-        recorderError=e.error||e;
-        reject(recorderError);
-      };
+      recorder.onerror=e=>reject(e.error||e);
     });
 
     recorder.ondataavailable=e=>{
@@ -1490,16 +1542,16 @@ async function startShotClipRecorder(){
       mime:made.mime,
       startedAt:performance.now(),
       stopped,
-      recorderError
+      recordStream:recordingSource.mediaStream,
+      recordTrack:recordingSource.recordTrack,
+      ownsTrack:recordingSource.ownsTrack
     };
 
     activeShotRecorder=controller;
 
-    try{
-      recorder.start(500);
-    }catch(e){
-      recorder.start();
-    }
+    // No timeslice: Safari does not dispatch a large chunk every 500 ms while
+    // the user is watching the preview. The complete blob is emitted on stop.
+    recorder.start();
 
     await started;
     return controller;
@@ -1525,11 +1577,18 @@ async function stopShotClipRecorder(controller){
     await controller.stopped;
   }catch(e){
     console.warn('Không dừng được video clip camera:',e);
+    if(controller.ownsTrack && controller.recordTrack){
+      try{ controller.recordTrack.stop(); }catch(stopError){}
+    }
     activeShotRecorder=null;
     return null;
   }
 
   activeShotRecorder=null;
+
+  if(controller.ownsTrack && controller.recordTrack){
+    try{ controller.recordTrack.stop(); }catch(e){}
+  }
 
   const mime=
     controller.recorder.mimeType ||
@@ -1544,7 +1603,10 @@ async function stopShotClipRecorder(controller){
     blob,
     url:URL.createObjectURL(blob),
     mime,
-    duration:elapsed
+    duration:elapsed,
+    width:CAMERA_CLIP_PROFILE.width,
+    height:CAMERA_CLIP_PROFILE.height,
+    fps:CAMERA_CLIP_FPS
   };
 }
 
@@ -2443,10 +2505,11 @@ async function renderFinal(){
 }
 
 /* ============ MP4 khung chuyển động (WebCodecs + embedded MP4 muxer) ============ */
-const VIDEO_OUT_W = 960;
-// MP4 cuối: 960×1440, H.264, 30 FPS.
-// Khi thiết bị yếu không nhận mức này, fallback tự thử 720×1080.
-const VIDEO_FPS = 30;
+const VIDEO_OUT_W=IS_IOS_MOBILE?720:960;
+// iOS: 720×1080 · 30 FPS. Each photo slot remains sharp because its source
+// clip is still more than twice the displayed slot resolution.
+// Android/Windows: 960×1440 · 30 FPS.
+const VIDEO_FPS=30;
 const VIDEO_MAX_BYTES = Number.POSITIVE_INFINITY; // không giới hạn dung lượng: ưu tiên chất lượng hình ảnh
 
 function evenNumber(n){ n=Math.max(2,Math.round(n)); return n%2===0?n:n+1; }
@@ -2530,6 +2593,10 @@ function createHiddenPlaybackVideo(){
   el.playsInline=true;
   el.loop=true;
   el.preload='auto';
+  el.controls=false;
+  el.disablePictureInPicture=true;
+  el.width=CAMERA_CLIP_PROFILE.width;
+  el.height=CAMERA_CLIP_PROFILE.height;
   el.setAttribute('playsinline','');
   el.setAttribute('webkit-playsinline','');
   el.setAttribute('aria-hidden','true');
@@ -2581,7 +2648,6 @@ function waitForVideoReady(videoEl){
 
 async function preparePlaybackVideos(){
   const videos=[null,null,null,null];
-  const loopSeconds=getVideoLoopSeconds();
 
   for(let i=0;i<4;i++){
     const clip=motionClips[i];
@@ -2593,14 +2659,13 @@ async function preparePlaybackVideos(){
     try{
       await waitForVideoReady(videoEl);
 
-      const sourceDuration=Number.isFinite(videoEl.duration) && videoEl.duration>0
-        ? videoEl.duration
-        : clip.duration;
-
-      if(sourceDuration && loopSeconds){
-        const rate=Math.max(0.75,Math.min(1.35,sourceDuration/loopSeconds));
-        try{ videoEl.playbackRate=rate; }catch(e){}
-      }
+      // Keep exact 1× playback. The recorder starts immediately before the
+      // countdown, so the useful part already matches the selected duration.
+      try{
+        videoEl.defaultPlaybackRate=1;
+        videoEl.playbackRate=1;
+        videoEl.currentTime=0;
+      }catch(e){}
 
       videos[i]=videoEl;
     }catch(e){
@@ -2612,21 +2677,29 @@ async function preparePlaybackVideos(){
 }
 
 async function startPlaybackVideos(videos){
-  const tasks=[];
-
-  for(const videoEl of videos){
-    if(!videoEl) continue;
-    try{
-      videoEl.pause();
-      videoEl.currentTime=0;
-    }catch(e){}
-
-    tasks.push(
-      videoEl.play().catch(()=>{})
-    );
+  if(IS_IOS_MOBILE){
+    for(const videoEl of videos){
+      if(!videoEl) continue;
+      try{
+        videoEl.pause();
+        videoEl.currentTime=0;
+        await videoEl.play().catch(()=>{});
+        await waitMs(24);
+      }catch(e){}
+    }
+  }else{
+    const tasks=[];
+    for(const videoEl of videos){
+      if(!videoEl) continue;
+      try{
+        videoEl.pause();
+        videoEl.currentTime=0;
+      }catch(e){}
+      tasks.push(videoEl.play().catch(()=>{}));
+    }
+    await Promise.all(tasks);
   }
 
-  await Promise.all(tasks);
   await nextPaint();
   await nextPaint();
 }
@@ -3317,7 +3390,7 @@ async function encodeFallbackMediaRecorder(sourceFrames,w,h,forceMobileSize=fals
 
     track=mediaStream.getVideoTracks()[0];
 
-    const bitrate=forceMobileSize?8000000:12000000;
+    const bitrate=forceMobileSize?6500000:(IS_IOS_MOBILE?9000000:12000000);
     const made=createMp4MediaRecorder(
       mediaStream,
       bitrate,
@@ -3518,7 +3591,7 @@ btnSaveVideo.addEventListener('click',async()=>{
       if(!('VideoEncoder' in window)) return null;
       for(const bitrate of (
         IS_IOS_MOBILE
-          ? [12000000,10000000,8000000]
+          ? [10000000,8500000,7000000]
           : (IS_ANDROID_MOBILE
               ? [14000000,12000000,9000000]
               : [16000000,14000000,10000000])

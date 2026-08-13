@@ -161,9 +161,8 @@
   }
   .stage video{
     width:100%; height:100%; object-fit:cover;
-    transform:translateZ(0) scaleX(-1);
-    -webkit-transform:translateZ(0) scaleX(-1);
-    will-change:transform;
+    transform:scaleX(-1);
+    -webkit-transform:scaleX(-1);
     display:block;
   }
   .stage.off video{display:none;}
@@ -952,7 +951,7 @@
     </div>
 
     <label class="gesture-row" id="gestureRow" hidden>
-      <input type="checkbox" id="gestureToggle" checked>
+      <input type="checkbox" id="gestureToggle">
       <span class="gesture-text">
         <span class="gesture-title" data-i18n="gestureLabel">✌️ Chụp từng ảnh bằng cử chỉ</span>
         <span class="gesture-hint" data-i18n="gestureHint">Mỗi ảnh cần một dấu V mới: chụp xong hãy hạ tay rồi đưa dấu V lại.</span>
@@ -1093,6 +1092,7 @@ const I18N = {
     delAria:"Xoá ảnh này",
     gestureLabel:"✌️ Chụp từng ảnh bằng cử chỉ",
     gestureHint:"Mỗi ảnh cần đưa dấu V một lần. Sau khi chụp, hạ tay rồi đưa dấu V lại để chụp ảnh tiếp theo.",
+    gestureHintIOS:"Trên iPhone, nhận diện ✌️ mặc định tắt để camera mượt. Bật tùy chọn này rồi bấm “Bắt đầu chụp” khi cần.",
     gestureWaitingBtn:"Đang chờ ✌️…",
     gestureWaiting:(n)=>`Đưa ✌️ để chụp ảnh ${n}/4`,
     gestureDetected:(n)=>`Đã nhận diện ✌️ — chuẩn bị chụp ảnh ${n}/4`
@@ -1161,6 +1161,7 @@ const I18N = {
     delAria:"이 사진 삭제",
     gestureLabel:"✌️ 손동작으로 한 장씩 촬영",
     gestureHint:"사진마다 브이(V) 사인을 한 번씩 보여주세요. 촬영 후 손을 내렸다가 다음 사진에서 다시 브이 사인을 보여주세요.",
+    gestureHintIOS:"iPhone에서는 카메라를 부드럽게 유지하기 위해 손동작 인식이 기본적으로 꺼져 있습니다. 필요할 때 켜고 촬영 시작을 누르세요.",
     gestureWaitingBtn:"✌️ 기다리는 중…",
     gestureWaiting:(n)=>`✌️ 브이 사인으로 ${n}/4번째 사진을 촬영하세요`,
     gestureDetected:(n)=>`✌️ 인식 완료 — ${n}/4번째 사진을 촬영합니다`
@@ -1184,6 +1185,10 @@ function applyI18n(){
     frameStatus.textContent = dict.frameStatusDefault;
   }
   updateProgressText();
+  const gestureHintEl=document.querySelector('[data-i18n="gestureHint"]');
+  if(gestureHintEl && IS_IOS_MOBILE && dict.gestureHintIOS){
+    gestureHintEl.textContent=dict.gestureHintIOS;
+  }
   document.querySelectorAll('.lang-switch button').forEach(b=>{
     b.classList.toggle('active', b.dataset.lang === currentLang);
   });
@@ -1293,7 +1298,7 @@ const FILTERS = {
 };
 
 function currentFilterCss(){ return FILTERS[activeFilter] || 'none'; }
-function applyLiveFilter(){ video.style.filter = currentFilterCss(); }
+function applyLiveFilter(){ video.style.filter = IS_IOS_MOBILE ? 'none' : currentFilterCss(); }
 function refreshSlotFilters(){
   slotsEls.forEach(el=>{
     const img = el.querySelector('img');
@@ -1566,9 +1571,10 @@ async function startCamera(){
     const cameraVideoConstraints = IS_IOS_MOBILE
       ? {
           facingMode:'user',
-          width:{ideal:1280,max:1280},
-          height:{ideal:960,max:960},
-          frameRate:{ideal:30,min:24,max:30}
+          width:{ideal:960,max:1280},
+          height:{ideal:720,max:960},
+          frameRate:{ideal:30,min:24,max:30},
+          resizeMode:'crop-and-scale'
         }
       : {
           facingMode:'user',
@@ -1581,16 +1587,24 @@ async function startCamera(){
       video:cameraVideoConstraints,
       audio:false
     });
-    video.srcObject = stream;
+    video.setAttribute('playsinline','');
+    video.setAttribute('webkit-playsinline','');
+    video.muted=true;
+    video.autoplay=true;
+    video.srcObject=stream;
+
+    const liveTrack=stream.getVideoTracks()[0];
+    if(liveTrack && 'contentHint' in liveTrack){
+      try{ liveTrack.contentHint='motion'; }catch(e){}
+    }
+
     await video.play();
     camOn = true;
     stage.classList.remove('off');
     btnStartCapture.disabled = false;
-    // Chỉ thu khung chuyển động trong lúc đếm ngược/chụp.
-    // Không chạy liên tục khi người dùng chỉ đang xem camera.
-    if(gestureToggle.checked){
-      ensureHandsModel().then(()=>startGestureLoop());
-    }
+    // Camera preview ở trạng thái thuần video.
+    // AI cử chỉ chỉ được tải sau khi người dùng bấm “Bắt đầu chụp”.
+    stopGestureLoop();
   }catch(err){
     camOn = false;
     camError.textContent = I18N[currentLang].camDenied;
@@ -1620,15 +1634,17 @@ btnCamToggle.addEventListener('click', ()=>{
 const gestureRow = document.getElementById('gestureRow');
 const gestureToggle = document.getElementById('gestureToggle');
 const gestureDot = document.getElementById('gestureDot');
+gestureRow.hidden=false;
+gestureToggle.checked=!IS_IOS_MOBILE;
 let handsModel = null;
 let gestureRaf = null;
 let gestureBusy = false;
 let lastGestureSend = 0;
 let peaceHoldStart = null;
 const PEACE_HOLD_MS = 650;
-const GESTURE_SEND_INTERVAL_MS = IS_IOS_MOBILE ? 220 : 100;
+const GESTURE_SEND_INTERVAL_MS = IS_IOS_MOBILE ? 520 : 120;
 
-const GESTURE_INPUT_W = IS_IOS_MOBILE ? 192 : 320;
+const GESTURE_INPUT_W = IS_IOS_MOBILE ? 128 : 320;
 const GESTURE_INPUT_H = Math.round(GESTURE_INPUT_W * 3 / 4);
 const gestureInputCanvas = document.createElement('canvas');
 gestureInputCanvas.width = GESTURE_INPUT_W;
@@ -1786,7 +1802,7 @@ async function ensureHandsModel(){
 }
 
 function gestureLoop(ts){
-  if(!camOn || !gestureToggle.checked || !handsModel || !stageInViewport || document.hidden){
+  if(!camOn || !gestureToggle.checked || !gestureSessionActive || !handsModel || !stageInViewport || document.hidden){
     gestureRaf=null;
     return;
   }
@@ -1805,14 +1821,22 @@ function gestureLoop(ts){
       gestureSource=gestureInputCanvas;
     }
 
-    handsModel.send({image:gestureSource})
-      .catch(()=>{})
-      .finally(()=>{ gestureBusy = false; });
+    const sendGestureFrame=()=>{
+      handsModel.send({image:gestureSource})
+        .catch(()=>{})
+        .finally(()=>{ gestureBusy=false; });
+    };
+
+    if(IS_IOS_MOBILE && 'requestIdleCallback' in window){
+      requestIdleCallback(sendGestureFrame,{timeout:180});
+    }else{
+      sendGestureFrame();
+    }
   }
   gestureRaf = requestAnimationFrame(gestureLoop);
 }
 function startGestureLoop(){
-  if(!handsModel || gestureRaf || !camOn || !gestureToggle.checked || !stageInViewport || document.hidden) return;
+  if(!handsModel || gestureRaf || !camOn || !gestureToggle.checked || !gestureSessionActive || !stageInViewport || document.hidden) return;
   lastGestureSend=0;
   gestureRaf=requestAnimationFrame(gestureLoop);
 }
@@ -1833,7 +1857,8 @@ gestureToggle.addEventListener('change', ()=>{
       applyI18n();
     }
   }else{
-    ensureHandsModel().then(()=>startGestureLoop());
+    // Chỉ đánh dấu người dùng muốn dùng cử chỉ.
+    // Mô hình được tải khi bấm “Bắt đầu chụp”, không chạy nền.
     updateProgressText();
   }
 });
@@ -1848,7 +1873,7 @@ const stageObserver = ('IntersectionObserver' in window)
 
       if(stageInViewport && !document.hidden){
         if(capturing) startMotionBuffer();
-        if(gestureToggle.checked && !capturing){
+        if(gestureSessionActive && gestureToggle.checked && !capturing){
           ensureHandsModel().then(()=>startGestureLoop());
         }
       }else{
@@ -1868,7 +1893,7 @@ document.addEventListener('visibilitychange',()=>{
     stopGestureLoop();
   }else if(stageInViewport){
     if(capturing) startMotionBuffer();
-    if(gestureToggle.checked && !capturing){
+    if(gestureSessionActive && gestureToggle.checked && !capturing){
       ensureHandsModel().then(()=>startGestureLoop());
     }
   }
@@ -2053,7 +2078,7 @@ function updateProgressText(){
     }
   }else{
     // Khi chưa chụp, chỉ chạy nhận diện cử chỉ; không thu video nền.
-    if(camOn && !capturing && stageInViewport && !document.hidden && gestureToggle.checked){
+    if(camOn && !capturing && stageInViewport && !document.hidden && gestureSessionActive && gestureToggle.checked){
       ensureHandsModel().then(()=>startGestureLoop());
     }
 

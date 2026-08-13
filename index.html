@@ -855,6 +855,16 @@
     }
   }
 
+
+  @supports (-webkit-touch-callout:none){
+    .countdown-num{
+      animation:none!important;
+    }
+    .stage{
+      contain:layout paint;
+    }
+  }
+
 </style>
 </head>
 <body>
@@ -1254,12 +1264,15 @@ const IS_MOBILE_DEVICE = IS_IOS_MOBILE || IS_ANDROID_MOBILE;
 // Xuất video vẫn giữ 30 FPS.
 // Riêng iOS thu nguồn chuyển động ở 20 FPS rồi nội suy thời gian lên 30 FPS.
 // Cách này giảm khoảng 1/3 số frame giữ trong RAM nhưng vẫn mượt hơn bản 15 FPS.
-const MOTION_CAPTURE_FPS = IS_IOS_MOBILE ? 20 : 30;
+const MOTION_CAPTURE_FPS = IS_IOS_MOBILE ? 15 : 30;
 const MAX_MOTION_CLIP_SECONDS = 10;
 const MAX_MOTION_CLIP_FRAMES = MOTION_CAPTURE_FPS * MAX_MOTION_CLIP_SECONDS;
-const MOTION_BUFFER_W = IS_IOS_MOBILE ? 160 : (IS_ANDROID_MOBILE ? 320 : 512);
-const MOTION_BUFFER_H = IS_IOS_MOBILE ? 120 : (IS_ANDROID_MOBILE ? 240 : 384);
-const MOTION_SHEET_COLS = 20;
+
+// iOS source is now sharper than the old 160×120 source, but captured less often.
+// Export blends adjacent source frames to stay visually smooth at 30 FPS.
+const MOTION_BUFFER_W = IS_IOS_MOBILE ? 256 : (IS_ANDROID_MOBILE ? 320 : 512);
+const MOTION_BUFFER_H = IS_IOS_MOBILE ? 192 : (IS_ANDROID_MOBILE ? 240 : 384);
+const MOTION_SHEET_COLS = IS_IOS_MOBILE ? 10 : 20;
 
 function getMotionClipSeconds(){
   const sec = Number(captureDelay) || 5;
@@ -1286,6 +1299,10 @@ let motionBufferCount = 0;
 let motionClips = [null,null,null,null];
 let motionBufferRaf = null;
 let motionBufferLastTs = 0;
+let iosCaptureSheet = null;
+let iosCaptureSheetCtx = null;
+let iosCaptureFrameCount = 0;
+let iosCaptureFrameTarget = 0;
 let stageInViewport = true;
 
 const FILTERS = {
@@ -1321,6 +1338,11 @@ timerPills.forEach(btn=>{
     motionBuffer=[];
     motionBufferWriteIndex=0;
     motionBufferCount=0;
+    releaseCanvas(iosCaptureSheet);
+    iosCaptureSheet=null;
+    iosCaptureSheetCtx=null;
+    iosCaptureFrameCount=0;
+    iosCaptureFrameTarget=0;
     if (!videoExportStatus.classList.contains('success') && !videoExportStatus.classList.contains('error')){
       applyI18n();
     }
@@ -1366,6 +1388,77 @@ function releaseMotionClip(clip){
   }else if(Array.isArray(clip)){
     clip.forEach(releaseCanvas);
   }
+}
+
+function prepareIOSCaptureSheet(){
+  const needed=getMotionClipFrames();
+
+  if(
+    iosCaptureSheet &&
+    iosCaptureSheetCtx &&
+    iosCaptureFrameTarget===needed
+  ){
+    iosCaptureSheetCtx.clearRect(
+      0,0,iosCaptureSheet.width,iosCaptureSheet.height
+    );
+    iosCaptureFrameCount=0;
+    return true;
+  }
+
+  releaseCanvas(iosCaptureSheet);
+  iosCaptureSheet=null;
+  iosCaptureSheetCtx=null;
+  iosCaptureFrameCount=0;
+  iosCaptureFrameTarget=needed;
+
+  const cols=Math.min(MOTION_SHEET_COLS,needed);
+  const rows=Math.ceil(needed/cols);
+  const sheet=document.createElement('canvas');
+  sheet.width=cols*MOTION_BUFFER_W;
+  sheet.height=rows*MOTION_BUFFER_H;
+
+  const ctx=sheet.getContext('2d',{
+    alpha:false,
+    desynchronized:true
+  });
+  if(!ctx){
+    releaseCanvas(sheet);
+    return false;
+  }
+
+  ctx.imageSmoothingEnabled=true;
+  ctx.imageSmoothingQuality='high';
+  iosCaptureSheet=sheet;
+  iosCaptureSheetCtx=ctx;
+  return true;
+}
+
+function captureIOSMotionFrame(){
+  if(
+    !iosCaptureSheet ||
+    !iosCaptureSheetCtx ||
+    iosCaptureFrameCount>=iosCaptureFrameTarget
+  ){
+    return;
+  }
+
+  const col=iosCaptureFrameCount%MOTION_SHEET_COLS;
+  const row=Math.floor(iosCaptureFrameCount/MOTION_SHEET_COLS);
+
+  iosCaptureSheetCtx.save();
+  iosCaptureSheetCtx.translate(
+    (col+1)*MOTION_BUFFER_W,
+    row*MOTION_BUFFER_H
+  );
+  iosCaptureSheetCtx.scale(-1,1);
+  iosCaptureSheetCtx.drawImage(
+    video,
+    0,0,video.videoWidth||1280,video.videoHeight||720,
+    0,0,MOTION_BUFFER_W,MOTION_BUFFER_H
+  );
+  iosCaptureSheetCtx.restore();
+
+  iosCaptureFrameCount++;
 }
 
 function ensureMotionBufferPool(){
@@ -1438,7 +1531,12 @@ function motionBufferLoop(ts){
     return;
   }
 
-  if(!motionBuffer.length && !ensureMotionBufferPool()){
+  if(IS_IOS_MOBILE){
+    if(!iosCaptureSheet && !prepareIOSCaptureSheet()){
+      motionBufferRaf=null;
+      return;
+    }
+  }else if(!motionBuffer.length && !ensureMotionBufferPool()){
     motionBufferRaf=null;
     return;
   }
@@ -1447,13 +1545,17 @@ function motionBufferLoop(ts){
   if(!motionBufferLastTs || ts-motionBufferLastTs>=interval-2){
     motionBufferLastTs=ts;
 
-    const c=motionBuffer[motionBufferWriteIndex];
-    const cx=c && c.getContext('2d',{alpha:false});
+    if(IS_IOS_MOBILE){
+      captureIOSMotionFrame();
+    }else{
+      const c=motionBuffer[motionBufferWriteIndex];
+      const cx=c && c.getContext('2d',{alpha:false});
 
-    if(cx){
-      drawRawCameraCoverMirrored(cx,video,c.width,c.height);
-      motionBufferWriteIndex=(motionBufferWriteIndex+1)%motionBuffer.length;
-      motionBufferCount=Math.min(motionBufferCount+1,motionBuffer.length);
+      if(cx){
+        drawRawCameraCoverMirrored(cx,video,c.width,c.height);
+        motionBufferWriteIndex=(motionBufferWriteIndex+1)%motionBuffer.length;
+        motionBufferCount=Math.min(motionBufferCount+1,motionBuffer.length);
+      }
     }
   }
 
@@ -1462,17 +1564,30 @@ function motionBufferLoop(ts){
 
 function startMotionBuffer(){
   if(motionBufferRaf!==null || !camOn || !capturing || !stageInViewport || document.hidden) return;
-  if(!ensureMotionBufferPool()) return;
+
+  if(IS_IOS_MOBILE){
+    if(!prepareIOSCaptureSheet()) return;
+  }else if(!ensureMotionBufferPool()){
+    return;
+  }
+
   motionBufferLastTs=0;
   scheduleMotionBuffer();
 }
 
 function stopMotionBuffer(){
   pauseMotionBuffer();
+
   motionBuffer.forEach(releaseCanvas);
   motionBuffer=[];
   motionBufferWriteIndex=0;
   motionBufferCount=0;
+
+  releaseCanvas(iosCaptureSheet);
+  iosCaptureSheet=null;
+  iosCaptureSheetCtx=null;
+  iosCaptureFrameCount=0;
+  iosCaptureFrameTarget=0;
 }
 
 function ringFrameAt(relativeIndex){
@@ -1551,16 +1666,34 @@ function buildDesktopArrayClip(){
 }
 
 function snapshotMotionClip(){
-  if(!motionBufferCount) return null;
+  if(IS_IOS_MOBILE){
+    if(!iosCaptureSheet || !iosCaptureFrameCount) return null;
 
-  // Mobile stores a single sprite-sheet canvas instead of hundreds of canvases.
+    const clip={
+      type:'sheet',
+      canvas:iosCaptureSheet,
+      frameW:MOTION_BUFFER_W,
+      frameH:MOTION_BUFFER_H,
+      cols:MOTION_SHEET_COLS,
+      length:iosCaptureFrameCount,
+      captureFps:MOTION_CAPTURE_FPS
+    };
+
+    // Transfer ownership of the sheet to the photo clip.
+    iosCaptureSheet=null;
+    iosCaptureSheetCtx=null;
+    iosCaptureFrameCount=0;
+    iosCaptureFrameTarget=0;
+    motionBufferLastTs=0;
+    return clip;
+  }
+
+  if(!motionBufferCount) return null;
   const clip=IS_MOBILE_DEVICE ? buildMobileSpriteClip() : buildDesktopArrayClip();
 
-  // Reuse the same ring-buffer canvases for the next shot.
   motionBufferWriteIndex=0;
   motionBufferCount=0;
   motionBufferLastTs=0;
-
   return clip;
 }
 
@@ -1571,9 +1704,9 @@ async function startCamera(){
     const cameraVideoConstraints = IS_IOS_MOBILE
       ? {
           facingMode:'user',
-          width:{ideal:960,max:1280},
-          height:{ideal:720,max:960},
-          frameRate:{ideal:30,min:24,max:30},
+          width:{ideal:1280,max:1280},
+          height:{ideal:720,max:720},
+          frameRate:{ideal:60,min:30,max:60},
           resizeMode:'crop-and-scale'
         }
       : {
@@ -1594,8 +1727,24 @@ async function startCamera(){
     video.srcObject=stream;
 
     const liveTrack=stream.getVideoTracks()[0];
-    if(liveTrack && 'contentHint' in liveTrack){
-      try{ liveTrack.contentHint='motion'; }catch(e){}
+    if(liveTrack){
+      if('contentHint' in liveTrack){
+        try{ liveTrack.contentHint='motion'; }catch(e){}
+      }
+
+      if(IS_IOS_MOBILE && typeof liveTrack.getCapabilities==='function'){
+        try{
+          const caps=liveTrack.getCapabilities();
+          const maxFps=Number(caps && caps.frameRate && caps.frameRate.max)||30;
+          await liveTrack.applyConstraints({
+            width:{ideal:1280,max:1280},
+            height:{ideal:720,max:720},
+            frameRate:{ideal:maxFps>=60?60:30,max:maxFps>=60?60:30}
+          });
+        }catch(e){
+          // Safari may ignore optional constraints; native preview still continues.
+        }
+      }
     }
 
     await video.play();
@@ -1929,10 +2078,12 @@ async function runCountdownAndShoot(slotIndex){
   countdownLabel.textContent = dict.countdownLabel(slotIndex+1);
   const seconds = Math.max(1, captureDelay);
   for (let n=seconds; n>=1; n--){
-    countdownNum.textContent = n;
-    countdownNum.style.animation = 'none';
-    void countdownNum.offsetWidth; // restart animation
-    countdownNum.style.animation = '';
+    countdownNum.textContent=n;
+    if(!IS_IOS_MOBILE){
+      countdownNum.style.animation='none';
+      void countdownNum.offsetWidth;
+      countdownNum.style.animation='';
+    }
     dotsEls.forEach((d,i)=> d.classList.toggle('active', i===slotIndex));
     await sleep(1000);
   }
@@ -2495,29 +2646,37 @@ function drawMotionClipCover(ctx,clip,videoFrameIndex,dx,dy,dw,dh){
   if(!length) return false;
 
   const sourceTotal=Math.max(1,getVideoSourceFrames());
-  const clipIndex=Math.min(
-    length-1,
-    Math.floor((videoFrameIndex%sourceTotal)*length/sourceTotal)
-  );
+  const sourcePosition=(videoFrameIndex%sourceTotal)*length/sourceTotal;
+  const frameA=Math.floor(sourcePosition)%length;
+  const frameB=(frameA+1)%length;
+  const mix=sourcePosition-Math.floor(sourcePosition);
 
-  if(clip.type==='sheet'){
-    const col=clipIndex%clip.cols;
-    const row=Math.floor(clipIndex/clip.cols);
-    drawCoverScaledRegion(
-      ctx,
-      clip.canvas,
-      col*clip.frameW,
-      row*clip.frameH,
-      clip.frameW,
-      clip.frameH,
-      dx,dy,dw,dh
-    );
-    return true;
-  }
+  const drawFrame=(index,alpha)=>{
+    ctx.save();
+    ctx.globalAlpha*=alpha;
 
-  const source=clip[clipIndex];
-  if(!source) return false;
-  drawCoverScaled(ctx,source,dx,dy,dw,dh);
+    if(clip.type==='sheet'){
+      const col=index%clip.cols;
+      const row=Math.floor(index/clip.cols);
+      drawCoverScaledRegion(
+        ctx,
+        clip.canvas,
+        col*clip.frameW,
+        row*clip.frameH,
+        clip.frameW,
+        clip.frameH,
+        dx,dy,dw,dh
+      );
+    }else{
+      const source=clip[index];
+      if(source) drawCoverScaled(ctx,source,dx,dy,dw,dh);
+    }
+
+    ctx.restore();
+  };
+
+  drawFrame(frameA,1);
+  if(mix>0.035) drawFrame(frameB,mix*0.72);
   return true;
 }
 

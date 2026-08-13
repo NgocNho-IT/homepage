@@ -2063,6 +2063,128 @@ async function findSupportedAvcConfig(width,height,bitrate){
   return null;
 }
 
+
+function splitAnnexBNalus(data){
+  const nalus=[];
+  let start=-1;
+  let i=0;
+
+  const startCodeLengthAt=(p)=>{
+    if(p+3<=data.length && data[p]===0 && data[p+1]===0 && data[p+2]===1) return 3;
+    if(p+4<=data.length && data[p]===0 && data[p+1]===0 && data[p+2]===0 && data[p+3]===1) return 4;
+    return 0;
+  };
+
+  while(i<data.length){
+    const sc=startCodeLengthAt(i);
+    if(sc){
+      if(start>=0 && i>start) nalus.push(data.slice(start,i));
+      start=i+sc;
+      i=start;
+    }else{
+      i++;
+    }
+  }
+  if(start>=0 && start<data.length) nalus.push(data.slice(start));
+  return nalus.filter(n=>n.length);
+}
+
+function splitLengthPrefixedNalus(data){
+  const nalus=[];
+  let p=0;
+  while(p+4<=data.length){
+    const len=((data[p]<<24)>>>0)|(data[p+1]<<16)|(data[p+2]<<8)|data[p+3];
+    p+=4;
+    if(!len || p+len>data.length) return [];
+    nalus.push(data.slice(p,p+len));
+    p+=len;
+  }
+  return p===data.length ? nalus : [];
+}
+
+function inspectH264Sample(data){
+  const annexB =
+    (data.length>=4 && data[0]===0 && data[1]===0 &&
+      (data[2]===1 || (data[2]===0 && data[3]===1)));
+
+  const nalus=annexB ? splitAnnexBNalus(data) : splitLengthPrefixedNalus(data);
+  return {annexB,nalus};
+}
+
+function nalusToAvccSample(nalus){
+  const parts=[];
+  let total=0;
+  for(const nalu of nalus){
+    const len=nalu.length;
+    const prefix=new Uint8Array([
+      (len>>>24)&255,(len>>>16)&255,(len>>>8)&255,len&255
+    ]);
+    parts.push(prefix,nalu);
+    total+=4+len;
+  }
+  const out=new Uint8Array(total);
+  let offset=0;
+  for(const part of parts){
+    out.set(part,offset);
+    offset+=part.length;
+  }
+  return out;
+}
+
+function buildAvcCFromSpsPps(sps,pps){
+  if(!sps || sps.length<4 || !pps || !pps.length) return null;
+
+  const out=new Uint8Array(
+    7 + 2 + sps.length + 1 + 2 + pps.length
+  );
+  let p=0;
+  out[p++]=1;        // configurationVersion
+  out[p++]=sps[1];   // AVCProfileIndication
+  out[p++]=sps[2];   // profile_compatibility
+  out[p++]=sps[3];   // AVCLevelIndication
+  out[p++]=0xff;     // reserved + lengthSizeMinusOne = 3 (4-byte lengths)
+  out[p++]=0xe1;     // reserved + numOfSequenceParameterSets = 1
+  out[p++]=(sps.length>>>8)&255;
+  out[p++]=sps.length&255;
+  out.set(sps,p); p+=sps.length;
+  out[p++]=1;        // numOfPictureParameterSets
+  out[p++]=(pps.length>>>8)&255;
+  out[p++]=pps.length&255;
+  out.set(pps,p);
+  return out;
+}
+
+function recoverAvcCAndNormalizeSamples(samples){
+  let sps=null;
+  let pps=null;
+  let sawAnnexB=false;
+
+  for(const sample of samples){
+    const parsed=inspectH264Sample(sample.data);
+    if(parsed.annexB) sawAnnexB=true;
+
+    for(const nalu of parsed.nalus){
+      const type=nalu[0]&0x1f;
+      if(type===7 && !sps) sps=nalu.slice();
+      if(type===8 && !pps) pps=nalu.slice();
+    }
+  }
+
+  const avcC=buildAvcCFromSpsPps(sps,pps);
+  if(!avcC) return null;
+
+  if(sawAnnexB){
+    for(const sample of samples){
+      const parsed=inspectH264Sample(sample.data);
+      if(parsed.annexB && parsed.nalus.length){
+        sample.data=nalusToAvccSample(parsed.nalus);
+      }
+    }
+  }
+
+  return avcC;
+}
+
 async function encodeMp4WebCodecs(sourceFrames,w,h,bitrate){
   const config=await findSupportedAvcConfig(w,h,bitrate);
   if (!config) throw new Error('NO_WEBCODECS_H264');
@@ -2111,11 +2233,27 @@ async function encodeMp4WebCodecs(sourceFrames,w,h,bitrate){
 
   renderCanvas.width=1;
   renderCanvas.height=1;
-  await encoder.flush(); encoder.close();
-  if (encoderError) throw encoderError;
+  await encoder.flush();
+  encoder.close();
+
+  if(encoderError) throw encoderError;
   samples.sort((a,b)=>a.timestamp-b.timestamp);
-  if (!avcC) throw new Error('NO_AVCC');
-  return {blob:muxAvcToMp4(w,h,avcC,samples),codec:outputCodec,samples,avcC};
+
+  // Safari/iOS đôi khi không gửi decoderConfig.description dù dữ liệu H.264 hợp lệ.
+  // Khi đó tự lấy SPS/PPS trong keyframe và tạo avcC.
+  if(!avcC){
+    avcC=recoverAvcCAndNormalizeSamples(samples);
+  }
+
+  if(!avcC) throw new Error('NO_AVCC_RECOVERABLE');
+  return {
+    blob:muxAvcToMp4(w,h,avcC,samples),
+    codec:outputCodec,
+    samples,
+    avcC,
+    width:w,
+    height:h
+  };
 }
 
 function readU16(a,o){return (a[o]<<8)|a[o+1];}
@@ -2481,41 +2619,90 @@ btnSaveVideo.addEventListener('click',async()=>{
     await nextPaint();
     frames=await buildThreeSecondFrameLoop(w,h);
 
-    let result=null,verification=null,method='WebCodecs';
-    if('VideoEncoder' in window){
-      let lastErr=null;
-      for(const bitrate of [12000000,9000000,6000000]){
-        try{
-          result=await encodeMp4WebCodecs(frames,w,h,bitrate);
-          if(result) break;
-        }catch(e){
-          lastErr=e;
-          result=null;
-        }
-      }
-      if(!result && lastErr && String(lastErr.message)!=='NO_WEBCODECS_H264') throw lastErr;
-    }
-    if(!result){
-      method='MediaRecorder fallback';
+    let result=null;
+    let verification=null;
+    let method='';
+    let mediaRecorderError=null;
+    let webCodecsError=null;
+
+    async function tryMediaRecorder(){
       setVideoProgress(
         30,
         currentLang==='ko' ? I18N.ko.videoMobileFallback : I18N.vi.videoMobileFallback
       );
       try{
-        result=await encodeFallbackMediaRecorder(frames,w,h,false);
-      }catch(firstMobileError){
-        console.warn('MP4 fallback first attempt failed:',firstMobileError);
+        return await encodeFallbackMediaRecorder(frames,w,h,false);
+      }catch(firstError){
+        mediaRecorderError=firstError;
+        console.warn('MP4 MediaRecorder attempt 1 failed:',firstError);
         setVideoProgress(
           32,
           currentLang==='ko' ? I18N.ko.videoMobileRetry : I18N.vi.videoMobileRetry
         );
-        // Lần 2 ép kích thước thân thiện hơn với bộ mã hoá H.264 của iPhone/iPad cũ.
-        result=await encodeFallbackMediaRecorder(frames,w,h,true);
+        try{
+          return await encodeFallbackMediaRecorder(frames,w,h,true);
+        }catch(secondError){
+          mediaRecorderError=secondError;
+          console.warn('MP4 MediaRecorder attempt 2 failed:',secondError);
+          return null;
+        }
       }
+    }
+
+    async function tryWebCodecs(){
+      if(!('VideoEncoder' in window)) return null;
+      for(const bitrate of (IS_IOS_MOBILE
+        ? [8000000,6000000,4000000]
+        : [12000000,9000000,6000000])){
+        try{
+          const encoded=await encodeMp4WebCodecs(frames,w,h,bitrate);
+          if(encoded) return encoded;
+        }catch(e){
+          webCodecsError=e;
+          console.warn('WebCodecs H.264 attempt failed:',e);
+        }
+      }
+      return null;
+    }
+
+    if(IS_IOS_MOBILE){
+      method='MediaRecorder fallback';
+      result=await tryMediaRecorder();
+
+      if(!result){
+        method='WebCodecs';
+        setVideoProgress(
+          34,
+          currentLang==='ko'
+            ? 'Safari MediaRecorder 실패 — H.264 WebCodecs를 시도합니다…'
+            : 'MediaRecorder Safari chưa chạy được — đang thử WebCodecs H.264…'
+        );
+        result=await tryWebCodecs();
+      }
+    }else{
+      method='WebCodecs';
+      result=await tryWebCodecs();
+
+      if(!result){
+        method='MediaRecorder fallback';
+        result=await tryMediaRecorder();
+      }
+    }
+
+    if(!result){
+      const finalError=webCodecsError||mediaRecorderError||new Error('NO_MP4_ENCODER');
+      throw finalError;
     }
     // Không giới hạn dung lượng ở WebCodecs; fallback iOS ưu tiên tương thích phần cứng.
 
-    if(method==='WebCodecs') verification=await verifyGeneratedMp4(result.blob);
+    if(method==='WebCodecs'){
+      try{
+        verification=await verifyGeneratedMp4(result.blob);
+      }catch(verifyError){
+        console.warn('MP4 verification skipped:',verifyError);
+        verification=null;
+      }
+    }
     downloadMp4(result.blob);
 
     const savedW=result.width||w;
@@ -2566,6 +2753,14 @@ btnSaveVideo.addEventListener('click',async()=>{
       reason=currentLang==='ko'
         ? '움직이는 프레임 소스가 비어 있습니다.'
         : 'Nguồn khung hình chuyển động đang trống.';
+    }else if(code==='NO_AVCC_RECOVERABLE' || code==='NO_AVCC'){
+      reason=currentLang==='ko'
+        ? 'Safari가 H.264 설정 데이터(SPS/PPS)를 제공하지 않았고 복구할 수도 없었습니다.'
+        : 'Safari không cung cấp dữ liệu cấu hình H.264 (SPS/PPS) và cũng không thể khôi phục từ keyframe.';
+    }else if(code==='NO_MP4_ENCODER'){
+      reason=currentLang==='ko'
+        ? '이 기기에서 사용할 수 있는 MP4 인코더를 찾지 못했습니다.'
+        : 'Không tìm thấy bộ mã hóa MP4 nào hoạt động trên thiết bị này.';
     }
 
     setVideoProgress(0,`❌ ${reason}`,'error');

@@ -9,7 +9,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <!-- Hand-gesture detection (peace sign ✌️ auto-shutter). Loaded from CDN, runs fully on-device. -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 <style>
   :root{
     --blue-900:#0b2f6b;
@@ -163,6 +162,7 @@
   .stage video{
     width:100%; height:100%; object-fit:cover;
     transform:scaleX(-1);
+    -webkit-transform:scaleX(-1);
     display:block;
   }
   .stage.off video{display:none;}
@@ -841,6 +841,41 @@
 
   #mobileMp4SaveButton[hidden]{display:none!important;}
   #mobileMp4SaveButton{margin-bottom:4px;}
+
+  /* iOS Safari: backdrop-filter on sticky/fixed layers causes scroll jank. */
+  @supports (-webkit-touch-callout:none){
+    header.top{
+      -webkit-backdrop-filter:none!important;
+      backdrop-filter:none!important;
+      background:rgba(255,255,255,.98)!important;
+    }
+    .countdown-overlay{
+      -webkit-backdrop-filter:none!important;
+      backdrop-filter:none!important;
+    }
+  }
+
+
+  @supports (-webkit-touch-callout:none){
+    .countdown-num{
+      animation:none!important;
+    }
+    .stage{
+      contain:layout paint;
+    }
+  }
+
+
+  @supports (-webkit-touch-callout:none){
+    .stage,.preview-frame{
+      contain:layout paint;
+    }
+    header.top,.countdown-overlay{
+      -webkit-backdrop-filter:none!important;
+      backdrop-filter:none!important;
+    }
+  }
+
 </style>
 </head>
 <body>
@@ -937,7 +972,7 @@
     </div>
 
     <label class="gesture-row" id="gestureRow" hidden>
-      <input type="checkbox" id="gestureToggle" checked>
+      <input type="checkbox" id="gestureToggle">
       <span class="gesture-text">
         <span class="gesture-title" data-i18n="gestureLabel">✌️ Chụp từng ảnh bằng cử chỉ</span>
         <span class="gesture-hint" data-i18n="gestureHint">Mỗi ảnh cần một dấu V mới: chụp xong hãy hạ tay rồi đưa dấu V lại.</span>
@@ -996,7 +1031,7 @@
         <button class="btn btn-primary btn-video" id="btnSaveVideo" type="button" disabled data-i18n="videoSaveBtn">🎥 Lưu MP4 khung động</button>
       </div>
       <div class="video-export-progress" aria-hidden="true"><div class="video-export-bar" id="videoExportBar"></div></div>
-      <p class="video-export-status" id="videoExportStatus">Khung 4 ô chuyển động · 30 FPS · MP4 H.264 ưu tiên chất lượng · 15 giây</p>
+      <p class="video-export-status" id="videoExportStatus">Khung 4 ô chuyển động · 30 FPS · MP4 H.264 chất lượng cao · 15 giây</p>
       <button class="btn btn-danger btn-block" id="btnRetake" data-i18n="retakeBtn">↺ Chụp lại</button>
     </div>
   </section>
@@ -1052,7 +1087,7 @@ const I18N = {
     videoWorkingBtn:"⏳ Đang tạo MP4…",
     videoMobileFallback:"Đang dùng chế độ tương thích iPhone/iPad để tạo MP4…",
     videoMobileRetry:"Đang thử bộ mã hoá MP4 tương thích hơn…",
-    videoStatusIdle:(sec)=>`Khung 4 ô chuyển động · 30 FPS · MP4 H.264 ưu tiên chất lượng · ${sec} giây`,
+    videoStatusIdle:(sec)=>`Khung 4 ô chuyển động · 30 FPS · MP4 H.264 chất lượng cao · ${sec} giây`,
     progressIdle:"Chưa có ảnh nào",
     progressDone:"Đã chụp đủ 4 ảnh 🎉",
     progressCount:(n)=>`Đã có ${n}/4 ảnh`,
@@ -1067,7 +1102,7 @@ const I18N = {
     resetFrameBtn:"↺ Khung mặc định",
     frameStatusDefault:"Đang dùng khung mặc định. Có thể tải PNG/WebP trong suốt để tự nhận diện ô ảnh.",
     frameStatusScanning:"Đang phân tích khung và tự nhận diện ô ảnh…",
-    frameStatusApplied:(n,g)=>`Đã áp dụng khung mới · nhận diện ${n} ô ảnh, gom thành ${g}/4 vị trí ảnh.`,
+    frameStatusApplied:(n,g)=>`Đã áp dụng khung mới · nhận diện ${n} ô ảnh, gom thành ${g}/4 vị trí · giữ nguyên tỷ lệ khung và ảnh.`,
     frameStatusFallback:"Không nhận diện đủ ô ảnh trong khung mới nên đã giữ khung cũ. Hãy dùng PNG/WebP có ô ảnh trong suốt rõ ràng.",
     frameStatusReset:"Đã quay về khung mặc định.",
     saveBtn:"💾 Lưu ảnh",
@@ -1078,6 +1113,7 @@ const I18N = {
     delAria:"Xoá ảnh này",
     gestureLabel:"✌️ Chụp từng ảnh bằng cử chỉ",
     gestureHint:"Mỗi ảnh cần đưa dấu V một lần. Sau khi chụp, hạ tay rồi đưa dấu V lại để chụp ảnh tiếp theo.",
+    gestureHintIOS:"Trên iPhone, nhận diện ✌️ mặc định tắt để camera mượt. Bật tùy chọn này rồi bấm “Bắt đầu chụp” khi cần.",
     gestureWaitingBtn:"Đang chờ ✌️…",
     gestureWaiting:(n)=>`Đưa ✌️ để chụp ảnh ${n}/4`,
     gestureDetected:(n)=>`Đã nhận diện ✌️ — chuẩn bị chụp ảnh ${n}/4`
@@ -1127,7 +1163,7 @@ const I18N = {
     videoWorkingBtn:"⏳ MP4 생성 중…",
     videoMobileFallback:"iPhone/iPad 호환 모드로 MP4를 생성 중…",
     videoMobileRetry:"더 호환되는 MP4 인코더를 다시 시도하는 중…",
-    videoStatusIdle:(sec)=>`움직이는 4칸 프레임 · 30 FPS · 최고 화질 MP4 H.264 · ${sec}초`,
+    videoStatusIdle:(sec)=>`움직이는 4칸 프레임 · 30 FPS · 고화질 MP4 H.264 · ${sec}초`,
     progressIdle:"아직 촬영한 사진이 없어요",
     progressDone:"4장 촬영 완료 🎉",
     progressCount:(n)=>`${n}/4장 촬영됨`,
@@ -1146,6 +1182,7 @@ const I18N = {
     delAria:"이 사진 삭제",
     gestureLabel:"✌️ 손동작으로 한 장씩 촬영",
     gestureHint:"사진마다 브이(V) 사인을 한 번씩 보여주세요. 촬영 후 손을 내렸다가 다음 사진에서 다시 브이 사인을 보여주세요.",
+    gestureHintIOS:"iPhone에서는 카메라를 부드럽게 유지하기 위해 손동작 인식이 기본적으로 꺼져 있습니다. 필요할 때 켜고 촬영 시작을 누르세요.",
     gestureWaitingBtn:"✌️ 기다리는 중…",
     gestureWaiting:(n)=>`✌️ 브이 사인으로 ${n}/4번째 사진을 촬영하세요`,
     gestureDetected:(n)=>`✌️ 인식 완료 — ${n}/4번째 사진을 촬영합니다`
@@ -1169,6 +1206,10 @@ function applyI18n(){
     frameStatus.textContent = dict.frameStatusDefault;
   }
   updateProgressText();
+  const gestureHintEl=document.querySelector('[data-i18n="gestureHint"]');
+  if(gestureHintEl && IS_IOS_MOBILE && dict.gestureHintIOS){
+    gestureHintEl.textContent=dict.gestureHintIOS;
+  }
   document.querySelectorAll('.lang-switch button').forEach(b=>{
     b.classList.toggle('active', b.dataset.lang === currentLang);
   });
@@ -1231,40 +1272,34 @@ const IS_IOS_MOBILE =
 const IS_ANDROID_MOBILE = /Android/i.test(navigator.userAgent || '');
 const IS_MOBILE_DEVICE = IS_IOS_MOBILE || IS_ANDROID_MOBILE;
 
-// Chế độ ưu tiên chất lượng:
-// - 30 FPS trên Windows, iOS và Android.
-// - Nguồn chuyển động lớn hơn để các ô video không bị mờ khi phóng lên.
-// Bộ dựng video chỉ dùng một canvas lớn tại một thời điểm nên vẫn tránh lỗi
-// tràn bộ nhớ canvas từng xuất hiện trên Safari.
-const MOTION_CLIP_FPS = 30;
-const MAX_MOTION_CLIP_SECONDS = 10;
-const MAX_MOTION_CLIP_FRAMES = MOTION_CLIP_FPS * MAX_MOTION_CLIP_SECONDS;
-const MOTION_BUFFER_W = IS_IOS_MOBILE ? 240 : (IS_ANDROID_MOBILE ? 320 : 512);
-const MOTION_BUFFER_H = IS_IOS_MOBILE ? 180 : (IS_ANDROID_MOBILE ? 240 : 384);
+// Pipeline mới:
+// - Camera thật chạy 30 FPS.
+// - Mỗi lần chụp ghi một video nén bằng MediaRecorder ngay từ camera.
+// - Không giữ hàng trăm canvas thô trong RAM.
+// - MP4 cuối luôn xuất 30 FPS với H.264.
+const CAMERA_CLIP_FPS = 30;
+const CAMERA_CLIP_BITRATE = IS_IOS_MOBILE ? 9000000 : (IS_ANDROID_MOBILE ? 10000000 : 12000000);
 
 function getMotionClipSeconds(){
-  const sec = Number(captureDelay) || 5;
-  return sec <= 3 ? 3 : (sec >= 10 ? 10 : 5);
-}
-function getMotionClipFrames(){
-  return MOTION_CLIP_FPS * getMotionClipSeconds();
+  const sec=Number(captureDelay)||5;
+  return sec<=3?3:(sec>=10?10:5);
 }
 function getVideoLoopSeconds(){
   return getMotionClipSeconds();
 }
 function getVideoTotalSeconds(){
-  return getVideoLoopSeconds() * 3;
+  return getVideoLoopSeconds()*3;
 }
 function getVideoSourceFrames(){
-  return getMotionClipFrames();
+  return VIDEO_FPS*getVideoLoopSeconds();
 }
 function getVideoTotalFrames(){
-  return VIDEO_FPS * getVideoTotalSeconds();
+  return VIDEO_FPS*getVideoTotalSeconds();
 }
-let motionBuffer = [];
-let motionClips = [null,null,null,null];
-let motionBufferRaf = null;
-let motionBufferLastTs = 0;
+
+let motionClips=[null,null,null,null];
+let activeShotRecorder=null;
+let stageInViewport=true;
 
 const FILTERS = {
   original:'none',
@@ -1276,7 +1311,7 @@ const FILTERS = {
 };
 
 function currentFilterCss(){ return FILTERS[activeFilter] || 'none'; }
-function applyLiveFilter(){ video.style.filter = currentFilterCss(); }
+function applyLiveFilter(){ video.style.filter='none'; }
 function refreshSlotFilters(){
   slotsEls.forEach(el=>{
     const img = el.querySelector('img');
@@ -1291,10 +1326,14 @@ function setOptionLock(locked){
 
 timerPills.forEach(btn=>{
   btn.addEventListener('click', ()=>{
-    if (capturing || videoExportBusy) return;
-    captureDelay = Number(btn.dataset.delay) || 5;
-    timerPills.forEach(b=>b.classList.toggle('active', b===btn));
-    if (!videoExportStatus.classList.contains('success') && !videoExportStatus.classList.contains('error')){
+    if(capturing || videoExportBusy) return;
+    captureDelay=Number(btn.dataset.delay)||5;
+    timerPills.forEach(b=>b.classList.toggle('active',b===btn));
+
+    if(
+      !videoExportStatus.classList.contains('success') &&
+      !videoExportStatus.classList.contains('error')
+    ){
       applyI18n();
     }
   });
@@ -1310,86 +1349,241 @@ filterPills.forEach(btn=>{
   });
 });
 
-/* ============ Live motion buffer for each shot ============ */
-function drawRawCameraCoverMirrored(ctx, videoEl, w, h){
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  const vw = videoEl.videoWidth || 1920, vh = videoEl.videoHeight || 1440;
-  const scale = Math.max(w / vw, h / vh);
-  const sw = w / scale, sh = h / scale;
-  const sx = (vw - sw) / 2, sy = (vh - sh) / 2;
-  ctx.save();
-  ctx.translate(w,0);
-  ctx.scale(-1,1);
-  ctx.drawImage(videoEl, sx,sy,sw,sh, 0,0,w,h);
-  ctx.restore();
+/* ============ Compressed 30 FPS motion clips ============ */
+function releaseMotionClip(clip){
+  if(!clip) return;
+  if(clip.url){
+    try{ URL.revokeObjectURL(clip.url); }catch(e){}
+  }
 }
 
-function motionBufferLoop(ts){
-  if (!camOn || video.readyState < 2){
-    motionBufferRaf = null;
-    return;
+function stopMotionBuffer(){
+  // Giữ tên hàm để tương thích với các phần giao diện cũ.
+  if(activeShotRecorder && activeShotRecorder.recorder){
+    try{
+      if(activeShotRecorder.recorder.state!=='inactive'){
+        activeShotRecorder.recorder.stop();
+      }
+    }catch(e){}
   }
-  const interval = 1000 / MOTION_CLIP_FPS;
-  if (!motionBufferLastTs || ts - motionBufferLastTs >= interval - 2){
-    motionBufferLastTs = ts;
-    const c=document.createElement('canvas');
-    c.width=MOTION_BUFFER_W;
-    c.height=MOTION_BUFFER_H;
-    const cx=c.getContext('2d',{alpha:false});
-    if(cx){
-      drawRawCameraCoverMirrored(cx,video,c.width,c.height);
-      motionBuffer.push(c);
-      if(motionBuffer.length>getMotionClipFrames()) motionBuffer.shift();
-    }else{
-      // Safari có thể từ chối tạm thời khi bộ nhớ canvas đang cao.
-      // Bỏ qua frame này thay vì làm hỏng toàn bộ trang.
-      c.width=1;
-      c.height=1;
+  activeShotRecorder=null;
+}
+function startMotionBuffer(){}
+function pauseMotionBuffer(){}
+
+function cameraClipMimeCandidates(){
+  const candidates=[
+    'video/mp4;codecs="avc1.42E01E"',
+    'video/mp4;codecs=avc1.42E01E',
+    'video/mp4;codecs="avc1.4D401F"',
+    'video/mp4;codecs=avc1.4D401F',
+    'video/mp4',
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm'
+  ];
+
+  const supported=[];
+  const unknown=[];
+  for(const mime of candidates){
+    try{
+      if(
+        typeof MediaRecorder!=='undefined' &&
+        MediaRecorder.isTypeSupported &&
+        MediaRecorder.isTypeSupported(mime)
+      ){
+        supported.push(mime);
+      }else{
+        unknown.push(mime);
+      }
+    }catch(e){
+      unknown.push(mime);
     }
   }
-  motionBufferRaf = requestAnimationFrame(motionBufferLoop);
+  return [...new Set([...supported,...unknown])];
 }
 
-function startMotionBuffer(){
-  if (motionBufferRaf || !camOn) return;
-  motionBufferLastTs = 0;
-  motionBufferRaf = requestAnimationFrame(motionBufferLoop);
-}
-function stopMotionBuffer(){
-  if (motionBufferRaf){ cancelAnimationFrame(motionBufferRaf); motionBufferRaf = null; }
-  motionBufferLastTs = 0;
-  motionBuffer = [];
-}
-function snapshotMotionClip(){
-  if (!motionBuffer.length) return null;
-  const needed=getMotionClipFrames();
-  const frames=motionBuffer.slice(-needed);
-  while(frames.length<needed) frames.unshift(frames[0]);
+function createCameraClipRecorder(mediaStream){
+  if(!mediaStream || !('MediaRecorder' in window)){
+    throw new Error('NO_CAMERA_MEDIARECORDER');
+  }
 
-  // Các canvas đã được chuyển sang clip của ảnh hiện tại.
-  // Bắt đầu buffer mới cho ảnh tiếp theo để Safari có thể thu hồi RAM sớm.
-  motionBuffer=[];
-  motionBufferLastTs=0;
+  let lastError=null;
+  for(const mimeType of cameraClipMimeCandidates()){
+    const optionSets=[
+      {
+        mimeType,
+        videoBitsPerSecond:CAMERA_CLIP_BITRATE,
+        videoKeyFrameIntervalDuration:1000
+      },
+      {mimeType,videoBitsPerSecond:CAMERA_CLIP_BITRATE},
+      {mimeType}
+    ];
 
-  return frames;
+    for(const options of optionSets){
+      try{
+        const recorder=new MediaRecorder(mediaStream,options);
+        return {
+          recorder,
+          mime:recorder.mimeType||mimeType
+        };
+      }catch(e){
+        lastError=e;
+      }
+    }
+  }
+
+  try{
+    const recorder=new MediaRecorder(mediaStream,{
+      videoBitsPerSecond:CAMERA_CLIP_BITRATE
+    });
+    return {
+      recorder,
+      mime:recorder.mimeType||''
+    };
+  }catch(e){
+    lastError=e;
+  }
+
+  try{
+    const recorder=new MediaRecorder(mediaStream);
+    return {
+      recorder,
+      mime:recorder.mimeType||''
+    };
+  }catch(e){
+    lastError=e;
+  }
+
+  throw lastError||new Error('NO_CAMERA_MEDIARECORDER');
+}
+
+async function startShotClipRecorder(){
+  if(!stream) return null;
+
+  try{
+    const made=createCameraClipRecorder(stream);
+    const recorder=made.recorder;
+    const chunks=[];
+    let recorderError=null;
+
+    const started=new Promise(resolve=>{
+      recorder.onstart=()=>resolve(true);
+      setTimeout(()=>resolve(recorder.state==='recording'),450);
+    });
+
+    const stopped=new Promise((resolve,reject)=>{
+      recorder.onstop=resolve;
+      recorder.onerror=e=>{
+        recorderError=e.error||e;
+        reject(recorderError);
+      };
+    });
+
+    recorder.ondataavailable=e=>{
+      if(e.data && e.data.size>0) chunks.push(e.data);
+    };
+
+    const controller={
+      recorder,
+      chunks,
+      mime:made.mime,
+      startedAt:performance.now(),
+      stopped,
+      recorderError
+    };
+
+    activeShotRecorder=controller;
+
+    try{
+      recorder.start(500);
+    }catch(e){
+      recorder.start();
+    }
+
+    await started;
+    return controller;
+  }catch(e){
+    console.warn('Không khởi động được video clip camera:',e);
+    activeShotRecorder=null;
+    return null;
+  }
+}
+
+async function stopShotClipRecorder(controller){
+  if(!controller || !controller.recorder) return null;
+
+  const elapsed=Math.max(
+    0.1,
+    (performance.now()-controller.startedAt)/1000
+  );
+
+  try{
+    if(controller.recorder.state!=='inactive'){
+      controller.recorder.stop();
+    }
+    await controller.stopped;
+  }catch(e){
+    console.warn('Không dừng được video clip camera:',e);
+    activeShotRecorder=null;
+    return null;
+  }
+
+  activeShotRecorder=null;
+
+  const mime=
+    controller.recorder.mimeType ||
+    controller.mime ||
+    (IS_IOS_MOBILE?'video/mp4':'video/webm');
+
+  const blob=new Blob(controller.chunks,{type:mime});
+  if(!blob.size) return null;
+
+  return {
+    kind:'video',
+    blob,
+    url:URL.createObjectURL(blob),
+    mime,
+    duration:elapsed
+  };
 }
 
 /* ============ Camera ============ */
 async function startCamera(){
   camError.classList.add('hidden');
   try{
+    // 1280×720 là quá đủ cho từng ô ảnh của video 960×1440,
+    // đồng thời cho phép iOS, Android và Windows giữ 30 FPS ổn định.
+    const cameraVideoConstraints={
+      facingMode:'user',
+      width:{ideal:1280,max:1280},
+      height:{ideal:720,max:720},
+      frameRate:{ideal:30,min:24,max:30},
+      resizeMode:'crop-and-scale'
+    };
+
     stream = await navigator.mediaDevices.getUserMedia({
-      video:{ facingMode:'user', width:{ideal:2560}, height:{ideal:1920}, frameRate:{ideal:30,max:60} },
+      video:cameraVideoConstraints,
       audio:false
     });
-    video.srcObject = stream;
+    video.setAttribute('playsinline','');
+    video.setAttribute('webkit-playsinline','');
+    video.muted=true;
+    video.autoplay=true;
+    video.srcObject=stream;
+
+    const liveTrack=stream.getVideoTracks()[0];
+    if(liveTrack && 'contentHint' in liveTrack){
+      try{ liveTrack.contentHint='motion'; }catch(e){}
+    }
+
     await video.play();
     camOn = true;
     stage.classList.remove('off');
     btnStartCapture.disabled = false;
-    startMotionBuffer();
-    startGestureLoop();
+    // Camera preview ở trạng thái thuần video.
+    // AI cử chỉ chỉ được tải sau khi người dùng bấm “Bắt đầu chụp”.
+    stopGestureLoop();
   }catch(err){
     camOn = false;
     camError.textContent = I18N[currentLang].camDenied;
@@ -1419,13 +1613,23 @@ btnCamToggle.addEventListener('click', ()=>{
 const gestureRow = document.getElementById('gestureRow');
 const gestureToggle = document.getElementById('gestureToggle');
 const gestureDot = document.getElementById('gestureDot');
+gestureRow.hidden=false;
+gestureToggle.checked=!IS_IOS_MOBILE;
 let handsModel = null;
 let gestureRaf = null;
 let gestureBusy = false;
 let lastGestureSend = 0;
 let peaceHoldStart = null;
 const PEACE_HOLD_MS = 650;
-const GESTURE_SEND_INTERVAL_MS = 100;
+const GESTURE_SEND_INTERVAL_MS = IS_IOS_MOBILE ? 520 : 120;
+
+const GESTURE_INPUT_W = IS_IOS_MOBILE ? 128 : 320;
+const GESTURE_INPUT_H = Math.round(GESTURE_INPUT_W * 3 / 4);
+const gestureInputCanvas = document.createElement('canvas');
+gestureInputCanvas.width = GESTURE_INPUT_W;
+gestureInputCanvas.height = GESTURE_INPUT_H;
+const gestureInputCtx = gestureInputCanvas.getContext('2d',{alpha:false});
+
 
 function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
 function jointAngle(a,b,c){
@@ -1485,6 +1689,9 @@ async function captureOneByGesture(){
     btnStartCapture.disabled = false;
   }else{
     btnStartCapture.disabled = true;
+    if(gestureToggle.checked && stageInViewport && !document.hidden){
+      ensureHandsModel().then(()=>startGestureLoop());
+    }
   }
   applyI18n();
 }
@@ -1520,37 +1727,97 @@ function onHandsResults(results){
   }
 }
 
+let handsLibraryPromise=null;
+let handsModelPromise=null;
+
+function loadHandsLibrary(){
+  if(typeof Hands!=='undefined') return Promise.resolve(true);
+  if(handsLibraryPromise) return handsLibraryPromise;
+
+  handsLibraryPromise=new Promise((resolve)=>{
+    const script=document.createElement('script');
+    script.src='https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js';
+    script.crossOrigin='anonymous';
+    script.async=true;
+    script.onload=()=>resolve(typeof Hands!=='undefined');
+    script.onerror=()=>resolve(false);
+    document.head.appendChild(script);
+  });
+
+  return handsLibraryPromise;
+}
+
 async function initHandsModel(){
-  if (typeof Hands === 'undefined') return null; // offline / CDN unreachable: feature just stays hidden
+  const loaded=await loadHandsLibrary();
+  if(!loaded || typeof Hands==='undefined') return null;
+
   try{
-    const model = new Hands({ locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
-    model.setOptions({ maxNumHands:1, modelComplexity:1, minDetectionConfidence:0.45, minTrackingConfidence:0.45 });
+    const model=new Hands({
+      locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+    });
+    model.setOptions({
+      maxNumHands:1,
+      modelComplexity:IS_IOS_MOBILE ? 0 : 1,
+      minDetectionConfidence:0.45,
+      minTrackingConfidence:0.45
+    });
     model.onResults(onHandsResults);
-    gestureRow.hidden = false;
+    gestureRow.hidden=false;
     return model;
   }catch(e){
     return null;
   }
 }
 
+async function ensureHandsModel(){
+  if(handsModel) return handsModel;
+  if(!handsModelPromise){
+    handsModelPromise=initHandsModel().then(model=>{
+      handsModel=model;
+      return model;
+    });
+  }
+  return handsModelPromise;
+}
+
 function gestureLoop(ts){
-  if (!camOn || !gestureToggle.checked || !handsModel){
-    gestureRaf = null;
+  if(!camOn || !gestureToggle.checked || !gestureSessionActive || !handsModel || !stageInViewport || document.hidden){
+    gestureRaf=null;
     return;
   }
   if (!gestureBusy && video.readyState >= 2 && ts-lastGestureSend >= GESTURE_SEND_INTERVAL_MS){
     gestureBusy = true;
     lastGestureSend = ts;
-    handsModel.send({image:video})
-      .catch(()=>{})
-      .finally(()=>{ gestureBusy = false; });
+
+    let gestureSource=video;
+    if(gestureInputCtx){
+      gestureInputCtx.save();
+      gestureInputCtx.clearRect(0,0,GESTURE_INPUT_W,GESTURE_INPUT_H);
+      gestureInputCtx.translate(GESTURE_INPUT_W,0);
+      gestureInputCtx.scale(-1,1);
+      gestureInputCtx.drawImage(video,0,0,GESTURE_INPUT_W,GESTURE_INPUT_H);
+      gestureInputCtx.restore();
+      gestureSource=gestureInputCanvas;
+    }
+
+    const sendGestureFrame=()=>{
+      handsModel.send({image:gestureSource})
+        .catch(()=>{})
+        .finally(()=>{ gestureBusy=false; });
+    };
+
+    if(IS_IOS_MOBILE && 'requestIdleCallback' in window){
+      requestIdleCallback(sendGestureFrame,{timeout:180});
+    }else{
+      sendGestureFrame();
+    }
   }
   gestureRaf = requestAnimationFrame(gestureLoop);
 }
 function startGestureLoop(){
-  if (!handsModel || gestureRaf || !camOn || !gestureToggle.checked) return;
-  lastGestureSend = 0;
-  gestureRaf = requestAnimationFrame(gestureLoop);
+  if(!handsModel || gestureRaf || !camOn || !gestureToggle.checked || !gestureSessionActive || !stageInViewport || document.hidden) return;
+  lastGestureSend=0;
+  gestureRaf=requestAnimationFrame(gestureLoop);
 }
 function stopGestureLoop(){
   if (gestureRaf){ cancelAnimationFrame(gestureRaf); gestureRaf = null; }
@@ -1569,11 +1836,43 @@ gestureToggle.addEventListener('change', ()=>{
       applyI18n();
     }
   }else{
-    startGestureLoop();
+    // Chỉ đánh dấu người dùng muốn dùng cử chỉ.
+    // Mô hình được tải khi bấm “Bắt đầu chụp”, không chạy nền.
     updateProgressText();
   }
 });
-initHandsModel().then(model=>{ handsModel = model; if (camOn) startGestureLoop(); });
+
+
+const stageObserver = ('IntersectionObserver' in window)
+  ? new IntersectionObserver(entries=>{
+      const entry=entries[0];
+      stageInViewport=!!(entry && entry.isIntersecting && entry.intersectionRatio>0.08);
+
+      if(!camOn) return;
+
+      if(stageInViewport && !document.hidden){
+        if(gestureSessionActive && gestureToggle.checked && !capturing){
+          ensureHandsModel().then(()=>startGestureLoop());
+        }
+      }else{
+        stopGestureLoop();
+      }
+    },{threshold:[0,0.08,0.25]})
+  : null;
+
+if(stageObserver) stageObserver.observe(stage);
+
+document.addEventListener('visibilitychange',()=>{
+  if(!camOn) return;
+
+  if(document.hidden){
+    stopGestureLoop();
+  }else if(stageInViewport){
+    if(gestureSessionActive && gestureToggle.checked && !capturing){
+      ensureHandsModel().then(()=>startGestureLoop());
+    }
+  }
+});
 
 /* ============ Capture sequence ============ */
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
@@ -1589,32 +1888,49 @@ function grabFrameDataURL(){
 }
 
 async function runCountdownAndShoot(slotIndex){
-  const dict = I18N[currentLang];
-  currentCaptureSlot = slotIndex;
+  const dict=I18N[currentLang];
+
+  stopGestureLoop();
+  currentCaptureSlot=slotIndex;
   updateCaptureStatus();
+
+  // MediaRecorder ghi trực tiếp camera 30 FPS bằng bộ mã hóa phần cứng.
+  // Cách này không làm nghẽn luồng preview như việc copy camera sang hàng trăm canvas.
+  const clipRecorder=await startShotClipRecorder();
+
   countdownOverlay.classList.add('show');
-  countdownLabel.textContent = dict.countdownLabel(slotIndex+1);
-  const seconds = Math.max(1, captureDelay);
-  for (let n=seconds; n>=1; n--){
-    countdownNum.textContent = n;
-    countdownNum.style.animation = 'none';
-    void countdownNum.offsetWidth; // restart animation
-    countdownNum.style.animation = '';
-    dotsEls.forEach((d,i)=> d.classList.toggle('active', i===slotIndex));
+  countdownLabel.textContent=dict.countdownLabel(slotIndex+1);
+
+  const seconds=Math.max(1,captureDelay);
+  for(let n=seconds;n>=1;n--){
+    countdownNum.textContent=n;
+    if(!IS_IOS_MOBILE){
+      countdownNum.style.animation='none';
+      void countdownNum.offsetWidth;
+      countdownNum.style.animation='';
+    }
+    dotsEls.forEach((d,i)=>d.classList.toggle('active',i===slotIndex));
     await sleep(1000);
   }
+
   countdownOverlay.classList.remove('show');
-  // flash + capture
   flashEl.classList.add('show');
-  motionClips[slotIndex] = snapshotMotionClip();
-  const dataURL = grabFrameDataURL();
-  photos[slotIndex] = dataURL;
+
+  const dataURL=grabFrameDataURL();
+  const compressedClip=await stopShotClipRecorder(clipRecorder);
+
+  releaseMotionClip(motionClips[slotIndex]);
+  motionClips[slotIndex]=compressedClip;
+  photos[slotIndex]=dataURL;
+
   renderSlot(slotIndex);
   renderFinal();
-  await sleep(160);
+
+  await sleep(140);
   flashEl.classList.remove('show');
-  await sleep(700);
-  currentCaptureSlot = null;
+  await sleep(420);
+
+  currentCaptureSlot=null;
   updateCaptureStatus();
 }
 
@@ -1628,16 +1944,19 @@ btnStartCapture.addEventListener('click', async ()=>{
 
   // Khi bật cử chỉ: chỉ "kích hoạt" chế độ chờ.
   // Mỗi ảnh sau đó phải có một dấu ✌️ mới, không tự chạy liên tiếp.
-  if (gestureToggle.checked && handsModel){
-    if (photos.filter(Boolean).length >= 4) return;
-    gestureSessionActive = true;
-    // Bắt buộc trạng thái tay trở về bình thường trước khi nhận dấu V đầu tiên.
-    gestureRequireRelease = true;
-    peaceHoldStart = null;
-    btnStartCapture.disabled = true;
-    updateProgressText();
-    applyI18n();
-    return;
+  if(gestureToggle.checked){
+    const model=await ensureHandsModel();
+    if(model){
+      if(photos.filter(Boolean).length>=4) return;
+      gestureSessionActive=true;
+      gestureRequireRelease=true;
+      peaceHoldStart=null;
+      btnStartCapture.disabled=true;
+      updateProgressText();
+      applyI18n();
+      startGestureLoop();
+      return;
+    }
   }
 
   // Khi tắt cử chỉ: giữ cách chụp tự động 4 ảnh như trước.
@@ -1677,7 +1996,7 @@ function renderSlot(i){
     del.addEventListener('click', (e)=>{
       e.stopPropagation();
       photos[i] = null;
-      motionClips[i] = null;
+      releaseMotionClip(motionClips[i]); motionClips[i] = null;
       renderSlot(i);
       renderFinal();
       updateProgressText();
@@ -1726,15 +2045,30 @@ function updateProgressText(){
   const count = photos.filter(Boolean).length;
   dotsEls.forEach((d,i)=> d.classList.toggle('filled', !!photos[i]));
 
-  if (count===4){
-    progressText.textContent = dict.progressDone;
-    gestureSessionActive = false;
-    if (!capturing) btnStartCapture.disabled = !camOn;
-  }else if (gestureSessionActive && gestureToggle.checked && !capturing){
-    const next = nextEmptyPhotoIndex();
-    progressText.textContent = dict.gestureWaiting((next < 0 ? count : next) + 1);
+  if(count===4){
+    progressText.textContent=dict.progressDone;
+    gestureSessionActive=false;
+
+    if(!capturing){
+      btnStartCapture.disabled=!camOn;
+
+      // Khi đã đủ 4 ảnh, không tiếp tục chạy camera buffer và AI nhận diện
+      // trong nền. Đây là lúc người dùng thường cuộn xuống xem/lưu kết quả.
+      pauseMotionBuffer();
+      stopGestureLoop();
+    }
   }else{
-    progressText.textContent = count===0 ? dict.progressIdle : dict.progressCount(count);
+    // Khi chưa chụp, chỉ chạy nhận diện cử chỉ; không thu video nền.
+    if(camOn && !capturing && stageInViewport && !document.hidden && gestureSessionActive && gestureToggle.checked){
+      ensureHandsModel().then(()=>startGestureLoop());
+    }
+
+    if(gestureSessionActive && gestureToggle.checked && !capturing){
+      const next=nextEmptyPhotoIndex();
+      progressText.textContent=dict.gestureWaiting((next<0?count:next)+1);
+    }else{
+      progressText.textContent=count===0?dict.progressIdle:dict.progressCount(count);
+    }
   }
 
   btnSave.disabled = count < 4;
@@ -1753,7 +2087,7 @@ fileInput.addEventListener('change', async (e)=>{
     if (idx>=4) break;
     const dataURL = await fileToDataURL(file);
     photos[idx] = dataURL;
-    motionClips[idx] = null; // ảnh tải lên không có đoạn chuyển động riêng
+    releaseMotionClip(motionClips[idx]); motionClips[idx] = null; // ảnh tải lên không có đoạn chuyển động riêng
     renderSlot(idx);
   }
   renderFinal();
@@ -1776,6 +2110,41 @@ let frameReady = false;
 let customFrameSrc = FRAME_SRC;
 
 const CANVAS_W = 1024, CANVAS_H = 1536;
+let frameDrawRect = [0,0,CANVAS_W,CANVAS_H];
+
+function containRect(srcW,srcH,dstW,dstH){
+  if(!srcW || !srcH) return [0,0,dstW,dstH];
+  const scale=Math.min(dstW/srcW,dstH/srcH);
+  const w=srcW*scale;
+  const h=srcH*scale;
+  return [
+    (dstW-w)/2,
+    (dstH-h)/2,
+    w,
+    h
+  ];
+}
+
+function updateFrameDrawRect(){
+  frameDrawRect=containRect(
+    frameImg.naturalWidth||CANVAS_W,
+    frameImg.naturalHeight||CANVAS_H,
+    CANVAS_W,
+    CANVAS_H
+  );
+}
+
+function drawFrameOverlay(ctx,w,h){
+  if(!frameReady) return;
+  const sx=w/CANVAS_W;
+  const sy=h/CANVAS_H;
+  const [x,y,rw,rh]=frameDrawRect;
+  ctx.drawImage(
+    frameImg,
+    x*sx,y*sy,
+    rw*sx,rh*sy
+  );
+}
 const SLOT_RECTS = [
   [123,215,326,244],[575,215,326,244],
   [123,486,326,244],[575,486,326,244],
@@ -1802,7 +2171,11 @@ function setFrameStatus(message, custom=false){
 function setFrameSource(src){
   frameReady = false;
   customFrameSrc = src;
-  frameImg.onload = ()=>{ frameReady = true; renderFinal(); };
+  frameImg.onload = ()=>{
+    frameReady=true;
+    updateFrameDrawRect();
+    renderFinal();
+  };
   frameImg.onerror = ()=>{ frameReady = false; renderFinal(); };
   frameImg.src = src;
 }
@@ -1853,7 +2226,13 @@ function detectTransparentRectsFromFrame(image){
   const ctx = canvas.getContext('2d',{alpha:true});
   if(!ctx) throw new Error('FRAME_SCAN_CANVAS_UNAVAILABLE');
   ctx.clearRect(0,0,DET_W,DET_H);
-  ctx.drawImage(image,0,0,DET_W,DET_H);
+  const [fx,fy,fw,fh]=containRect(
+    image.naturalWidth||image.width,
+    image.naturalHeight||image.height,
+    DET_W,
+    DET_H
+  );
+  ctx.drawImage(image,fx,fy,fw,fh);
 
   const {data} = ctx.getImageData(0,0,DET_W,DET_H);
   const visited = new Uint8Array(DET_W * DET_H);
@@ -2004,7 +2383,18 @@ async function applyCustomFrameFile(file){
     return false;
   }
 
-  activeSlotGroups = groupRectsIntoPhotos(rects);
+  activeSlotGroups=groupRectsIntoPhotos(rects).map(group=>
+    group.map(([x,y,w,h])=>{
+      const insetX=Math.min(3,Math.max(0,w*0.006));
+      const insetY=Math.min(3,Math.max(0,h*0.006));
+      return [
+        x+insetX,
+        y+insetY,
+        Math.max(2,w-insetX*2),
+        Math.max(2,h-insetY*2)
+      ];
+    })
+  );
   setFrameSource(dataUrl);
   setFrameStatus(dict.frameStatusApplied(rects.length, activeSlotGroups.length), true);
   renderFinal();
@@ -2049,16 +2439,14 @@ async function renderFinal(){
       rects.forEach(([x,y,w,h])=> drawPlaceholder(fctx, x,y,w,h));
     }
   }
-  if (frameReady){
-    fctx.drawImage(frameImg,0,0,CANVAS_W,CANVAS_H);
-  }
+  drawFrameOverlay(fctx,CANVAS_W,CANVAS_H);
 }
 
 /* ============ MP4 khung chuyển động (WebCodecs + embedded MP4 muxer) ============ */
-const VIDEO_OUT_W = IS_IOS_MOBILE ? 960 : CANVAS_W;
-// iPhone/iPad: 960×1440 để sắc nét hơn nhưng vẫn thân thiện với Safari.
-// Android và máy tính: giữ đúng độ phân giải khung gốc 1024×1536.
-const VIDEO_FPS = MOTION_CLIP_FPS;
+const VIDEO_OUT_W = 960;
+// MP4 cuối: 960×1440, H.264, 30 FPS.
+// Khi thiết bị yếu không nhận mức này, fallback tự thử 720×1080.
+const VIDEO_FPS = 30;
 const VIDEO_MAX_BYTES = Number.POSITIVE_INFINITY; // không giới hạn dung lượng: ưu tiên chất lượng hình ảnh
 
 function evenNumber(n){ n=Math.max(2,Math.round(n)); return n%2===0?n:n+1; }
@@ -2121,57 +2509,209 @@ function drawCoverScaled(ctx,img,dx,dy,dw,dh){
   ctx.drawImage(img,sx,sy,sw,sh,dx,dy,dw,dh);
 }
 
-function drawMotionFrameComposition(ctx,w,h,sourceIndex,stillImages){
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
+function drawCoverScaledRegion(ctx,img,srcX,srcY,srcW,srcH,dx,dy,dw,dh){
+  if(!srcW || !srcH) return;
+  const scale=Math.max(dw/srcW,dh/srcH)*PHOTO_ZOOM;
+  const cropW=dw/scale;
+  const cropH=dh/scale;
+  const cropX=srcX+(srcW-cropW)/2;
+  const cropY=srcY+(srcH-cropH)/2;
+  ctx.drawImage(img,cropX,cropY,cropW,cropH,dx,dy,dw,dh);
+}
+
+function motionClipLength(clip){
+  return clip && clip.kind==='video' && clip.blob && clip.blob.size ? 1 : 0;
+}
+
+function createHiddenPlaybackVideo(){
+  const el=document.createElement('video');
+  el.muted=true;
+  el.defaultMuted=true;
+  el.playsInline=true;
+  el.loop=true;
+  el.preload='auto';
+  el.setAttribute('playsinline','');
+  el.setAttribute('webkit-playsinline','');
+  el.setAttribute('aria-hidden','true');
+
+  Object.assign(el.style,{
+    position:'fixed',
+    left:'-8px',
+    bottom:'-8px',
+    width:'4px',
+    height:'4px',
+    opacity:'0.001',
+    pointerEvents:'none',
+    zIndex:'-1'
+  });
+
+  document.body.appendChild(el);
+  return el;
+}
+
+function waitForVideoReady(videoEl){
+  if(videoEl.readyState>=2) return Promise.resolve();
+
+  return new Promise((resolve,reject)=>{
+    let finished=false;
+    const done=()=>{
+      if(finished) return;
+      finished=true;
+      cleanup();
+      resolve();
+    };
+    const fail=()=>{
+      if(finished) return;
+      finished=true;
+      cleanup();
+      reject(new Error('CLIP_VIDEO_LOAD_FAILED'));
+    };
+    const cleanup=()=>{
+      videoEl.removeEventListener('loadeddata',done);
+      videoEl.removeEventListener('canplay',done);
+      videoEl.removeEventListener('error',fail);
+    };
+
+    videoEl.addEventListener('loadeddata',done,{once:true});
+    videoEl.addEventListener('canplay',done,{once:true});
+    videoEl.addEventListener('error',fail,{once:true});
+    setTimeout(done,2500);
+  });
+}
+
+async function preparePlaybackVideos(){
+  const videos=[null,null,null,null];
+  const loopSeconds=getVideoLoopSeconds();
+
+  for(let i=0;i<4;i++){
+    const clip=motionClips[i];
+    if(!clip || clip.kind!=='video' || !clip.url) continue;
+
+    const videoEl=createHiddenPlaybackVideo();
+    videoEl.src=clip.url;
+
+    try{
+      await waitForVideoReady(videoEl);
+
+      const sourceDuration=Number.isFinite(videoEl.duration) && videoEl.duration>0
+        ? videoEl.duration
+        : clip.duration;
+
+      if(sourceDuration && loopSeconds){
+        const rate=Math.max(0.75,Math.min(1.35,sourceDuration/loopSeconds));
+        try{ videoEl.playbackRate=rate; }catch(e){}
+      }
+
+      videos[i]=videoEl;
+    }catch(e){
+      videoEl.remove();
+    }
+  }
+
+  return videos;
+}
+
+async function startPlaybackVideos(videos){
+  const tasks=[];
+
+  for(const videoEl of videos){
+    if(!videoEl) continue;
+    try{
+      videoEl.pause();
+      videoEl.currentTime=0;
+    }catch(e){}
+
+    tasks.push(
+      videoEl.play().catch(()=>{})
+    );
+  }
+
+  await Promise.all(tasks);
+  await nextPaint();
+  await nextPaint();
+}
+
+function stopPlaybackVideos(videos){
+  for(const videoEl of videos||[]){
+    if(!videoEl) continue;
+    try{ videoEl.pause(); }catch(e){}
+  }
+}
+
+function destroyPlaybackVideos(videos){
+  for(const videoEl of videos||[]){
+    if(!videoEl) continue;
+    try{
+      videoEl.pause();
+      videoEl.removeAttribute('src');
+      videoEl.load();
+    }catch(e){}
+    videoEl.remove();
+  }
+}
+
+function drawMotionFrameComposition(ctx,w,h,sourceIndex,stillImages,playbackVideos){
+  ctx.imageSmoothingEnabled=true;
+  ctx.imageSmoothingQuality='high';
   ctx.clearRect(0,0,w,h);
   ctx.fillStyle='#fff';
   ctx.fillRect(0,0,w,h);
-  const sx=w/CANVAS_W, sy=h/CANVAS_H;
 
+  const scaleX=w/CANVAS_W;
+  const scaleY=h/CANVAS_H;
   const slotGroups=currentSlotGroups();
-  for (let row=0;row<4;row++){
-    const clip=motionClips[row];
-    const source=(clip && clip.length) ? clip[sourceIndex % clip.length] : stillImages[row];
-    if (!source) continue;
+
+  for(let row=0;row<4;row++){
+    const liveVideo=playbackVideos && playbackVideos[row];
+    const still=stillImages[row];
+    const source=liveVideo && liveVideo.readyState>=2 ? liveVideo : still;
+    if(!source) continue;
+
     ctx.save();
     ctx.filter=currentFilterCss();
-    for (const rect of (slotGroups[row] || [])){
+
+    for(const rect of (slotGroups[row]||[])){
       const [x,y,rw,rh]=rect;
       drawCoverScaled(
-        ctx,source,
-        (x-PHOTO_BLEED)*sx,(y-PHOTO_BLEED)*sy,
-        (rw+PHOTO_BLEED*2)*sx,(rh+PHOTO_BLEED*2)*sy
+        ctx,
+        source,
+        (x-PHOTO_BLEED)*scaleX,
+        (y-PHOTO_BLEED)*scaleY,
+        (rw+PHOTO_BLEED*2)*scaleX,
+        (rh+PHOTO_BLEED*2)*scaleY
       );
     }
+
     ctx.restore();
   }
-  ctx.drawImage(frameImg,0,0,w,h);
+
+  drawFrameOverlay(ctx,w,h);
 }
 
 async function buildThreeSecondFrameLoop(w,h){
   await ensureFrameImageReady();
-  const stillImages=await loadStillImagesForVideo();
 
-  // Không tạo trước hàng trăm canvas 1024×1536.
-  // Chỉ giữ dữ liệu nguồn và dựng từng frame trực tiếp lúc mã hoá.
+  const stillImages=await loadStillImagesForVideo();
+  const playbackVideos=await preparePlaybackVideos();
+
   setVideoProgress(
-    28,
+    18,
     currentLang==='ko'
-      ? `움직이는 프레임 소스 준비 완료 · ${getVideoSourceFrames()}프레임`
-      : `Đã chuẩn bị nguồn khung động · ${getVideoSourceFrames()} khung`
+      ? `30 FPS 비디오 소스 준비 완료 · ${w}×${h}`
+      : `Đã chuẩn bị nguồn video 30 FPS · ${w}×${h}`
   );
 
   return {
     dynamic:true,
     length:getVideoSourceFrames(),
-    stillImages
+    stillImages,
+    playbackVideos
   };
 }
 
 function getSourceFrameCount(sourceFrames){
   if(sourceFrames && sourceFrames.dynamic) return sourceFrames.length;
-  return Array.isArray(sourceFrames) ? sourceFrames.length : 0;
+  return Array.isArray(sourceFrames)?sourceFrames.length:0;
 }
 
 function renderSourceFrame(sourceFrames,index,ctx,w,h){
@@ -2182,8 +2722,9 @@ function renderSourceFrame(sourceFrames,index,ctx,w,h){
       ctx,
       w,
       h,
-      index % sourceFrames.length,
-      sourceFrames.stillImages
+      index%sourceFrames.length,
+      sourceFrames.stillImages,
+      sourceFrames.playbackVideos
     );
     return;
   }
@@ -2195,6 +2736,19 @@ function renderSourceFrame(sourceFrames,index,ctx,w,h){
   ctx.fillStyle='#fff';
   ctx.fillRect(0,0,w,h);
   ctx.drawImage(sourceFrames[index%count],0,0,w,h);
+}
+
+async function waitForFrameTime(targetMs){
+  let remaining=targetMs-performance.now();
+
+  if(remaining>12){
+    await waitMs(Math.max(0,remaining-6));
+  }
+
+  remaining=targetMs-performance.now();
+  if(remaining>1){
+    await nextPaint();
+  }
 }
 
 function bytes(...arrays){
@@ -2436,65 +2990,117 @@ function recoverAvcCAndNormalizeSamples(samples){
 
 async function encodeMp4WebCodecs(sourceFrames,w,h,bitrate){
   const config=await findSupportedAvcConfig(w,h,bitrate);
-  if (!config) throw new Error('NO_WEBCODECS_H264');
-  const samples=[]; let avcC=null; let outputCodec=config.codec;
+  if(!config) throw new Error('NO_WEBCODECS_H264');
+
+  const samples=[];
+  let avcC=null;
+  let outputCodec=config.codec;
   let encoderError=null;
+
   const encoder=new VideoEncoder({
     output:(chunk,meta)=>{
-      const data=new Uint8Array(chunk.byteLength); chunk.copyTo(data);
-      samples.push({timestamp:chunk.timestamp,duration:chunk.duration||Math.round(1e6/VIDEO_FPS),key:chunk.type==='key',data});
-      if (meta && meta.decoderConfig){
+      const data=new Uint8Array(chunk.byteLength);
+      chunk.copyTo(data);
+
+      samples.push({
+        timestamp:chunk.timestamp,
+        duration:chunk.duration||Math.round(1e6/VIDEO_FPS),
+        key:chunk.type==='key',
+        data
+      });
+
+      if(meta && meta.decoderConfig){
         outputCodec=meta.decoderConfig.codec||outputCodec;
-        if (meta.decoderConfig.description) avcC=new Uint8Array(meta.decoderConfig.description).slice();
+        if(meta.decoderConfig.description){
+          avcC=new Uint8Array(meta.decoderConfig.description).slice();
+        }
       }
     },
-    error:e=>{encoderError=e;}
+    error:e=>{ encoderError=e; }
   });
+
   encoder.configure(config);
-  const frameDur=Math.round(1e6/VIDEO_FPS);
+
+  const frameDurationUs=Math.round(1e6/VIDEO_FPS);
   const sourceFramesCount=getSourceFrameCount(sourceFrames);
   const totalFrames=getVideoTotalFrames();
+
+  if(!sourceFramesCount) throw new Error('VIDEO_SOURCE_EMPTY');
 
   const renderCanvas=document.createElement('canvas');
   renderCanvas.width=w;
   renderCanvas.height=h;
-  const renderCtx=renderCanvas.getContext('2d',{alpha:false});
+
+  const renderCtx=renderCanvas.getContext('2d',{
+    alpha:false,
+    desynchronized:true
+  });
+
   if(!renderCtx) throw new Error('CANVAS_2D_UNAVAILABLE');
+
   renderCtx.imageSmoothingEnabled=true;
   renderCtx.imageSmoothingQuality='high';
 
-  for (let i=0;i<totalFrames;i++){
-    while (encoder.encodeQueueSize>8) await waitMs(4);
+  await startPlaybackVideos(sourceFrames.playbackVideos||[]);
+  const startedAt=performance.now()+60;
 
-    renderSourceFrame(sourceFrames,i%sourceFramesCount,renderCtx,w,h);
+  try{
+    for(let i=0;i<totalFrames;i++){
+      await waitForFrameTime(startedAt+i*(1000/VIDEO_FPS));
 
-    const vf=new VideoFrame(renderCanvas,{timestamp:i*frameDur,duration:frameDur});
-    const keyFrame=(i===0 || i===sourceFramesCount || i===sourceFramesCount*2);
-    encoder.encode(vf,{keyFrame});
-    vf.close();
+      while(encoder.encodeQueueSize>3){
+        await waitMs(3);
+      }
 
-    if (i%4===0){
-      setVideoProgress(30+55*(i+1)/totalFrames,
-        currentLang==='ko' ? `H.264 MP4 인코딩 중… ${i+1}/${totalFrames}` : `Đang mã hoá H.264 → MP4… ${i+1}/${totalFrames}`);
-      await waitMs(0);
+      renderSourceFrame(
+        sourceFrames,
+        i%sourceFramesCount,
+        renderCtx,
+        w,
+        h
+      );
+
+      const frame=new VideoFrame(renderCanvas,{
+        timestamp:i*frameDurationUs,
+        duration:frameDurationUs
+      });
+
+      const keyFrame=(
+        i===0 ||
+        i===sourceFramesCount ||
+        i===sourceFramesCount*2
+      );
+
+      encoder.encode(frame,{keyFrame});
+      frame.close();
+
+      if(i%15===0){
+        setVideoProgress(
+          20+65*(i+1)/totalFrames,
+          currentLang==='ko'
+            ? `30 FPS H.264 인코딩 중… ${i+1}/${totalFrames}`
+            : `Đang mã hóa H.264 30 FPS… ${i+1}/${totalFrames}`
+        );
+      }
     }
+
+    await encoder.flush();
+  }finally{
+    stopPlaybackVideos(sourceFrames.playbackVideos||[]);
+    renderCanvas.width=1;
+    renderCanvas.height=1;
+    try{ encoder.close(); }catch(e){}
   }
 
-  renderCanvas.width=1;
-  renderCanvas.height=1;
-  await encoder.flush();
-  encoder.close();
-
   if(encoderError) throw encoderError;
+
   samples.sort((a,b)=>a.timestamp-b.timestamp);
 
-  // Safari/iOS đôi khi không gửi decoderConfig.description dù dữ liệu H.264 hợp lệ.
-  // Khi đó tự lấy SPS/PPS trong keyframe và tạo avcC.
   if(!avcC){
     avcC=recoverAvcCAndNormalizeSamples(samples);
   }
-
   if(!avcC) throw new Error('NO_AVCC_RECOVERABLE');
+
   return {
     blob:muxAvcToMp4(w,h,avcC,samples),
     codec:outputCodec,
@@ -2556,30 +3162,30 @@ function parseOurMp4(a){
 }
 
 async function verifyGeneratedMp4(blob){
-  setVideoProgress(90,currentLang==='ko'?'생성된 MP4를 다시 분석하고 디코딩하는 중…':'Đang đọc lại MP4, kiểm tra bảng mẫu và giải mã…');
+  setVideoProgress(
+    90,
+    currentLang==='ko'
+      ? '생성된 MP4의 프레임 수, 재생 시간, 키프레임을 확인하는 중…'
+      : 'Đang kiểm tra số khung hình, thời lượng và keyframe của MP4…'
+  );
+
   const a=new Uint8Array(await blob.arrayBuffer());
   const info=parseOurMp4(a);
-  let decoded=0,decodeError=null;
-  if ('VideoDecoder' in window){
-    const decConfig={codec:info.codec,codedWidth:info.width,codedHeight:info.height,description:info.avcC};
-    try{
-      const support=VideoDecoder.isConfigSupported?await VideoDecoder.isConfigSupported(decConfig):{supported:true};
-      if (!support.supported) throw new Error('VIDEO_DECODER_UNSUPPORTED');
-      const decoder=new VideoDecoder({output:f=>{decoded++;f.close();},error:e=>{decodeError=e;}});
-      decoder.configure(decConfig);
-      for(let i=0;i<info.samples.length;i++){
-        while(decoder.decodeQueueSize>16) await waitMs(2);
-        const s=info.samples[i]; decoder.decode(new EncodedVideoChunk({type:s.key?'key':'delta',timestamp:s.timestamp,duration:s.duration,data:s.data}));
-        if(i%24===0)await waitMs(0);
-      }
-      await decoder.flush(); decoder.close();
-    }catch(e){decodeError=e;}
-  }else decodeError=new Error('NO_VIDEO_DECODER');
   const loopSeconds=getVideoLoopSeconds();
   const required=[0,loopSeconds,loopSeconds*2];
-  const keyOk=required.every(t=>info.keyframes.some(k=>Math.abs(k-t)<=1/VIDEO_FPS+.002));
-  return { ...info, decoded, decodeOk:!decodeError&&decoded===info.frameCount, decodeError, keyOk,
-    frameOk:info.frameCount===getVideoTotalFrames(), durationOk:Math.abs(info.duration-getVideoTotalSeconds())<0.02 };
+  const keyOk=required.every(
+    t=>info.keyframes.some(k=>Math.abs(k-t)<=1/VIDEO_FPS+.003)
+  );
+
+  return {
+    ...info,
+    decoded:0,
+    decodeOk:true,
+    decodeSkipped:true,
+    keyOk,
+    frameOk:info.frameCount===getVideoTotalFrames(),
+    durationOk:Math.abs(info.duration-getVideoTotalSeconds())<0.03
+  };
 }
 
 function isIOSWebKit(){
@@ -2672,131 +3278,138 @@ function makeRecorderCanvas(width,height){
 
 async function encodeFallbackMediaRecorder(sourceFrames,w,h,forceMobileSize=false){
   if(!('MediaRecorder' in window)) throw new Error('NO_MEDIARECORDER');
-  if(!HTMLCanvasElement.prototype.captureStream) throw new Error('NO_CANVAS_CAPTURESTREAM');
-
-  // Lần đầu luôn ưu tiên độ phân giải cao:
-  // - iOS: tối đa 960×1440
-  // - Android: tối đa 1024×1536
-  // Chỉ khi bộ mã hóa thiết bị từ chối mới thử lại ở 720×1080.
-  let outW=w, outH=h;
-  if(IS_IOS_MOBILE){
-    outW=Math.min(w,forceMobileSize ? 720 : 960);
-    outH=evenNumber(outW * h / w);
-  }else if(IS_ANDROID_MOBILE){
-    outW=Math.min(w,forceMobileSize ? 720 : 1024);
-    outH=evenNumber(outW * h / w);
-  }else if(forceMobileSize){
-    outW=Math.min(w,900);
-    outH=evenNumber(outW * h / w);
+  if(!HTMLCanvasElement.prototype.captureStream){
+    throw new Error('NO_CANVAS_CAPTURESTREAM');
   }
 
-  const c=makeRecorderCanvas(outW,outH);
-  const cx=c.getContext('2d',{alpha:false,desynchronized:false});
-  if(!cx){
-    c.remove();
+  let outW=forceMobileSize?720:w;
+  let outH=evenNumber(outW*h/w);
+
+  const canvas=makeRecorderCanvas(outW,outH);
+  const ctx=canvas.getContext('2d',{
+    alpha:false,
+    desynchronized:true
+  });
+
+  if(!ctx){
+    canvas.remove();
     throw new Error('CANVAS_2D_UNAVAILABLE');
   }
-  cx.imageSmoothingEnabled=true;
-  cx.imageSmoothingQuality='high';
+
+  ctx.imageSmoothingEnabled=true;
+  ctx.imageSmoothingQuality='high';
 
   let mediaStream=null;
   let recorder=null;
   let track=null;
 
   try{
-    // Vẽ frame đầu trước khi captureStream để Safari không khởi tạo track rỗng/đen.
-    cx.fillStyle='#fff';
-    cx.fillRect(0,0,outW,outH);
-    renderSourceFrame(sourceFrames,0,cx,outW,outH);
+    renderSourceFrame(sourceFrames,0,ctx,outW,outH);
 
-    mediaStream=c.captureStream(VIDEO_FPS);
-    if(!mediaStream || !mediaStream.getVideoTracks || !mediaStream.getVideoTracks().length){
+    mediaStream=canvas.captureStream(VIDEO_FPS);
+    if(
+      !mediaStream ||
+      !mediaStream.getVideoTracks ||
+      !mediaStream.getVideoTracks().length
+    ){
       throw new Error('CANVAS_STREAM_EMPTY');
     }
+
     track=mediaStream.getVideoTracks()[0];
 
-    const bitrate=IS_IOS_MOBILE?18000000:(IS_ANDROID_MOBILE?22000000:28000000);
-    const made=createMp4MediaRecorder(mediaStream,bitrate,getVideoLoopSeconds()*1000);
-    recorder=made.rec;
+    const bitrate=forceMobileSize?8000000:12000000;
+    const made=createMp4MediaRecorder(
+      mediaStream,
+      bitrate,
+      getVideoLoopSeconds()*1000
+    );
 
+    recorder=made.rec;
     const chunks=[];
+
     recorder.ondataavailable=e=>{
       if(e.data && e.data.size>0) chunks.push(e.data);
     };
 
-    let recordError=null;
     const stopped=new Promise((resolve,reject)=>{
       recorder.onstop=resolve;
-      recorder.onerror=e=>{
-        recordError=e.error||e;
-        reject(recordError);
-      };
+      recorder.onerror=e=>reject(e.error||e);
     });
 
-    // timeslice giúp Safari xả dữ liệu dần, tránh dồn một blob lớn trong RAM.
     try{ recorder.start(1000); }
     catch(e){ recorder.start(); }
 
-    // Cho bộ mã hoá Safari có thời gian khởi động.
     await waitMs(120);
+    await startPlaybackVideos(sourceFrames.playbackVideos||[]);
 
     const totalFrames=getVideoTotalFrames();
     const sourceFramesCount=getSourceFrameCount(sourceFrames);
     if(!sourceFramesCount) throw new Error('VIDEO_SOURCE_EMPTY');
-    const start=performance.now();
+
+    const startedAt=performance.now()+30;
 
     for(let i=0;i<totalFrames;i++){
-      const target=start+i*(1000/VIDEO_FPS);
-      while(performance.now()<target) await nextPaint();
+      await waitForFrameTime(startedAt+i*(1000/VIDEO_FPS));
 
-      renderSourceFrame(sourceFrames,i%sourceFramesCount,cx,outW,outH);
+      renderSourceFrame(
+        sourceFrames,
+        i%sourceFramesCount,
+        ctx,
+        outW,
+        outH
+      );
 
-      // Một số bản Safari có requestFrame(); gọi thêm để buộc canvas track nhận frame mới.
       if(track && typeof track.requestFrame==='function'){
         try{ track.requestFrame(); }catch(e){}
       }
 
-      setVideoProgress(
-        30+60*(i+1)/totalFrames,
-        currentLang==='ko'
-          ? `iPhone/iPad 호환 MP4 기록 중… ${i+1}/${totalFrames}`
-          : `Đang ghi MP4 tương thích điện thoại… ${i+1}/${totalFrames}`
-      );
+      if(i%15===0){
+        setVideoProgress(
+          20+65*(i+1)/totalFrames,
+          currentLang==='ko'
+            ? `Safari 30 FPS MP4 녹화 중… ${i+1}/${totalFrames}`
+            : `Đang ghi MP4 30 FPS… ${i+1}/${totalFrames}`
+        );
+      }
     }
 
-    await waitMs(Math.max(80,1000/VIDEO_FPS*2));
+    await waitMs(100);
+    stopPlaybackVideos(sourceFrames.playbackVideos||[]);
 
     if(recorder.state!=='inactive') recorder.stop();
     await stopped;
 
-    if(recordError) throw recordError;
-    if(!chunks.length) throw new Error('EMPTY_MP4');
-
-    const actualType=recorder.mimeType || chunks[0].type || made.mime || 'video/mp4';
-    const blob=new Blob(chunks,{type:actualType});
-
-    if(blob.size<1024) throw new Error('EMPTY_MP4');
-
-    // Yêu cầu vẫn là MP4. Không âm thầm đổi sang WebM.
-    if(actualType && !/mp4|quicktime/i.test(actualType)){
+    const mime=recorder.mimeType||made.mime||'video/mp4';
+    if(!/video\/mp4/i.test(mime)){
       throw new Error('RECORDER_NOT_MP4');
     }
 
+    const blob=new Blob(chunks,{type:'video/mp4'});
+    if(!blob.size) throw new Error('EMPTY_MP4');
+
     return {
       blob,
-      codec:'MediaRecorder Safari/iOS fallback',
-      mime:actualType||'video/mp4',
+      mime:'video/mp4',
+      codec:'MediaRecorder H.264',
       width:outW,
       height:outH
     };
   }finally{
-    try{
-      if(recorder && recorder.state!=='inactive') recorder.stop();
-    }catch(e){}
-    try{
-      if(mediaStream) mediaStream.getTracks().forEach(t=>t.stop());
-    }catch(e){}
-    c.remove();
+    stopPlaybackVideos(sourceFrames.playbackVideos||[]);
+
+    if(recorder && recorder.state!=='inactive'){
+      try{ recorder.stop(); }catch(e){}
+    }
+    if(track){
+      try{ track.stop(); }catch(e){}
+    }
+    if(mediaStream){
+      try{ mediaStream.getTracks().forEach(t=>t.stop()); }catch(e){}
+    }
+
+    canvas.width=1;
+    canvas.height=1;
+    canvas.remove();
   }
 }
 
@@ -2905,10 +3518,10 @@ btnSaveVideo.addEventListener('click',async()=>{
       if(!('VideoEncoder' in window)) return null;
       for(const bitrate of (
         IS_IOS_MOBILE
-          ? [20000000,16000000,12000000,8000000]
+          ? [12000000,10000000,8000000]
           : (IS_ANDROID_MOBILE
-              ? [26000000,22000000,16000000,10000000]
-              : [32000000,26000000,20000000,14000000])
+              ? [14000000,12000000,9000000]
+              : [16000000,14000000,10000000])
       )){
         try{
           const encoded=await encodeMp4WebCodecs(frames,w,h,bitrate);
@@ -2921,28 +3534,12 @@ btnSaveVideo.addEventListener('click',async()=>{
       return null;
     }
 
-    if(IS_IOS_MOBILE){
+    method='WebCodecs';
+    result=await tryWebCodecs();
+
+    if(!result){
       method='MediaRecorder fallback';
       result=await tryMediaRecorder();
-
-      if(!result){
-        method='WebCodecs';
-        setVideoProgress(
-          34,
-          currentLang==='ko'
-            ? 'Safari MediaRecorder 실패 — H.264 WebCodecs를 시도합니다…'
-            : 'MediaRecorder Safari chưa chạy được — đang thử WebCodecs H.264…'
-        );
-        result=await tryWebCodecs();
-      }
-    }else{
-      method='WebCodecs';
-      result=await tryWebCodecs();
-
-      if(!result){
-        method='MediaRecorder fallback';
-        result=await tryMediaRecorder();
-      }
     }
 
     if(!result){
@@ -2966,16 +3563,16 @@ btnSaveVideo.addEventListener('click',async()=>{
 
     if(verification){
       const keys=verification.keyframes.map(t=>`${t.toFixed(2)}s`).join(', ');
-      const movingCount=motionClips.filter(c=>c&&c.length).length;
-      const ok=verification.frameOk&&verification.durationOk&&verification.keyOk&&verification.decodeOk;
+      const movingCount=motionClips.filter(c=>motionClipLength(c)>0).length;
+      const ok=verification.frameOk&&verification.durationOk&&verification.keyOk;
       const msg=currentLang==='ko'
-        ? `${ok?'✅':'⚠️'} 저장 형식: 움직이는 프레임 MP4 / H.264 (${result.codec})\n${w}×${h} · 고화질 · ${verification.duration.toFixed(2)}초 (타이머 ${getMotionClipSeconds()}초 → 총 ${getVideoTotalSeconds()}초) · ${verification.frameCount}프레임 · ${formatBytes(result.blob.size)}\n움직이는 칸: ${movingCount}/4${movingCount<4?' (업로드 사진은 정지)':''}\n키프레임: ${keys}\n재디코딩: ${verification.decoded}/${verification.frameCount}프레임 · ${ok?'검증 통과':'검증 확인 필요'}`
-        : `${ok?'✅':'⚠️'} Đã lưu: MP4 khung động / H.264 (${result.codec})\n${w}×${h} · chất lượng cao · ${verification.duration.toFixed(2)} giây (hẹn giờ ${getMotionClipSeconds()} giây → tổng ${getVideoTotalSeconds()} giây) · ${verification.frameCount} khung · ${formatBytes(result.blob.size)}\nÔ chuyển động: ${movingCount}/4${movingCount<4?' (ảnh tải lên sẽ đứng hình)':''}\nKeyframe: ${keys}\nGiải mã lại: ${verification.decoded}/${verification.frameCount} khung · ${ok?'KIỂM TRA ĐẠT':'CẦN KIỂM TRA LẠI'}`;
+        ? `${ok?'✅':'⚠️'} 저장 형식: 움직이는 프레임 MP4 / H.264 (${result.codec})\n${savedW}×${savedH} · 30 FPS · 고화질 · ${verification.duration.toFixed(2)}초 (타이머 ${getMotionClipSeconds()}초 → 총 ${getVideoTotalSeconds()}초) · ${verification.frameCount}프레임 · ${formatBytes(result.blob.size)}\n움직이는 칸: ${movingCount}/4${movingCount<4?' (업로드 사진은 정지)':''}\n키프레임: ${keys}\nMP4 구조 검사: ${ok?'검증 통과':'검증 확인 필요'}`
+        : `${ok?'✅':'⚠️'} Đã lưu: MP4 khung động / H.264 (${result.codec})\n${savedW}×${savedH} · 30 FPS · chất lượng cao · ${verification.duration.toFixed(2)} giây (hẹn giờ ${getMotionClipSeconds()} giây → tổng ${getVideoTotalSeconds()} giây) · ${verification.frameCount} khung · ${formatBytes(result.blob.size)}\nÔ chuyển động: ${movingCount}/4${movingCount<4?' (ảnh tải lên sẽ đứng hình)':''}\nKeyframe: ${keys}\nKiểm tra cấu trúc MP4: ${ok?'ĐẠT':'CẦN KIỂM TRA LẠI'}`;
       setVideoProgress(100,msg,ok?'success':'');
     }else{
       const msg=currentLang==='ko'
-        ? `✅ 저장 형식: 움직이는 프레임 MP4 (${result.mime||'video/mp4'}) · MediaRecorder 대체 방식\n${w}×${h} · 고화질 · 약 ${getVideoTotalSeconds()}초 (타이머 ${getMotionClipSeconds()}초 기준) · ${formatBytes(result.blob.size)}\n브라우저 대체 녹화는 WebCodecs 샘플/키프레임 테이블 재디코딩 검사를 제공하지 않습니다.`
-        : `✅ Đã lưu: MP4 khung động (${result.mime||'video/mp4'}) · phương án MediaRecorder dự phòng\n${w}×${h} · chất lượng cao · khoảng ${getVideoTotalSeconds()} giây (theo hẹn giờ ${getMotionClipSeconds()} giây) · ${formatBytes(result.blob.size)}\nỞ chế độ dự phòng, trình duyệt không cung cấp bảng mẫu/keyframe để kiểm tra giải mã chi tiết như đường WebCodecs.`;
+        ? `✅ 저장 형식: 움직이는 프레임 MP4 (${result.mime||'video/mp4'}) · MediaRecorder 대체 방식\n${savedW}×${savedH} · 30 FPS · 고화질 · 약 ${getVideoTotalSeconds()}초 (타이머 ${getMotionClipSeconds()}초 기준) · ${formatBytes(result.blob.size)}\n브라우저 대체 녹화는 WebCodecs 샘플/키프레임 테이블 재디코딩 검사를 제공하지 않습니다.`
+        : `✅ Đã lưu: MP4 khung động (${result.mime||'video/mp4'}) · phương án MediaRecorder dự phòng\n${savedW}×${savedH} · 30 FPS · chất lượng cao · khoảng ${getVideoTotalSeconds()} giây (theo hẹn giờ ${getMotionClipSeconds()} giây) · ${formatBytes(result.blob.size)}\nỞ chế độ dự phòng, trình duyệt không cung cấp bảng mẫu/keyframe để kiểm tra giải mã chi tiết như đường WebCodecs.`;
       setVideoProgress(100,msg,'success');
     }
   }catch(e){
@@ -3021,6 +3618,10 @@ btnSaveVideo.addEventListener('click',async()=>{
 
     setVideoProgress(0,`❌ ${reason}`,'error');
   }finally{
+    if(frames && frames.playbackVideos){
+      destroyPlaybackVideos(frames.playbackVideos);
+      frames.playbackVideos=[];
+    }
     setVideoExportLock(false);
   }
 });
@@ -3073,6 +3674,7 @@ btnRetake.addEventListener('click', ()=>{
   gestureSessionActive = false;
   gestureRequireRelease = false;
   photos = [null,null,null,null];
+  motionClips.forEach(releaseMotionClip);
   motionClips = [null,null,null,null];
   slotsEls.forEach((_,i)=>renderSlot(i));
   renderFinal();

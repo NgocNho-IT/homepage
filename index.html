@@ -836,6 +836,8 @@
     }
   }
 
+  #mobileMp4SaveButton[hidden]{display:none!important;}
+  #mobileMp4SaveButton{margin-bottom:4px;}
 </style>
 </head>
 <body>
@@ -1200,11 +1202,18 @@ let currentCaptureSlot = null;
 // Độ dài đoạn này tự bám theo lựa chọn hẹn giờ: 3 / 5 / 10 giây.
 // MP4 cuối sẽ lấy đúng độ dài đó rồi nhân 3 lần:
 // 3s -> 9s, 5s -> 15s, 10s -> 30s.
-const MOTION_CLIP_FPS = 24;
+const IS_IOS_MOBILE =
+  /iPad|iPhone|iPod/i.test(navigator.userAgent || '') ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+// Safari/iPhone có giới hạn bộ nhớ canvas thấp hơn desktop.
+// 15 fps và 240×180 vẫn đủ nét cho các ô ảnh trong MP4 720×1080,
+// đồng thời giảm mạnh số canvas phải giữ trong RAM.
+const MOTION_CLIP_FPS = IS_IOS_MOBILE ? 15 : 24;
 const MAX_MOTION_CLIP_SECONDS = 10;
 const MAX_MOTION_CLIP_FRAMES = MOTION_CLIP_FPS * MAX_MOTION_CLIP_SECONDS;
-const MOTION_BUFFER_W = 384;
-const MOTION_BUFFER_H = 288;
+const MOTION_BUFFER_W = IS_IOS_MOBILE ? 240 : 384;
+const MOTION_BUFFER_H = IS_IOS_MOBILE ? 180 : 288;
 
 function getMotionClipSeconds(){
   const sec = Number(captureDelay) || 5;
@@ -1297,13 +1306,20 @@ function motionBufferLoop(ts){
   const interval = 1000 / MOTION_CLIP_FPS;
   if (!motionBufferLastTs || ts - motionBufferLastTs >= interval - 2){
     motionBufferLastTs = ts;
-    const c = document.createElement('canvas');
-    c.width = MOTION_BUFFER_W;
-    c.height = MOTION_BUFFER_H;
-    const cx = c.getContext('2d',{alpha:false});
-    drawRawCameraCoverMirrored(cx, video, c.width, c.height);
-    motionBuffer.push(c);
-    if (motionBuffer.length > MAX_MOTION_CLIP_FRAMES) motionBuffer.shift();
+    const c=document.createElement('canvas');
+    c.width=MOTION_BUFFER_W;
+    c.height=MOTION_BUFFER_H;
+    const cx=c.getContext('2d',{alpha:false});
+    if(cx){
+      drawRawCameraCoverMirrored(cx,video,c.width,c.height);
+      motionBuffer.push(c);
+      if(motionBuffer.length>MAX_MOTION_CLIP_FRAMES) motionBuffer.shift();
+    }else{
+      // Safari có thể từ chối tạm thời khi bộ nhớ canvas đang cao.
+      // Bỏ qua frame này thay vì làm hỏng toàn bộ trang.
+      c.width=1;
+      c.height=1;
+    }
   }
   motionBufferRaf = requestAnimationFrame(motionBufferLoop);
 }
@@ -1320,10 +1336,16 @@ function stopMotionBuffer(){
 }
 function snapshotMotionClip(){
   if (!motionBuffer.length) return null;
-  const needed = getMotionClipFrames();
-  const frames = motionBuffer.slice(-needed);
-  while (frames.length < needed) frames.unshift(frames[0]);
-  return frames.slice();
+  const needed=getMotionClipFrames();
+  const frames=motionBuffer.slice(-needed);
+  while(frames.length<needed) frames.unshift(frames[0]);
+
+  // Các canvas đã được chuyển sang clip của ảnh hiện tại.
+  // Bắt đầu buffer mới cho ảnh tiếp theo để Safari có thể thu hồi RAM sớm.
+  motionBuffer=[];
+  motionBufferLastTs=0;
+
+  return frames;
 }
 
 /* ============ Camera ============ */
@@ -1911,29 +1933,49 @@ function drawMotionFrameComposition(ctx,w,h,sourceIndex,stillImages){
 async function buildThreeSecondFrameLoop(w,h){
   await ensureFrameImageReady();
   const stillImages=await loadStillImagesForVideo();
-  const totalSourceFrames=getVideoSourceFrames();
-  const work=document.createElement('canvas'); work.width=w; work.height=h;
-  const ctx=work.getContext('2d',{alpha:false});
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  const frames=[];
-  for (let i=0;i<totalSourceFrames;i++){
-    drawMotionFrameComposition(ctx,w,h,i,stillImages);
-    const snap=document.createElement('canvas'); snap.width=w; snap.height=h;
-    const snapCtx=snap.getContext('2d',{alpha:false});
-    snapCtx.imageSmoothingEnabled = true;
-    snapCtx.imageSmoothingQuality = 'high';
-    snapCtx.drawImage(work,0,0);
-    frames.push(snap);
-    setVideoProgress(
-      5+25*(i+1)/totalSourceFrames,
-      currentLang==='ko'
-        ? `4개 촬영 영상을 프레임에 합성 중… ${i+1}/${totalSourceFrames}`
-        : `Đang ghép 4 đoạn chuyển động vào khung… ${i+1}/${totalSourceFrames}`
+
+  // Không tạo trước hàng trăm canvas 1024×1536.
+  // Chỉ giữ dữ liệu nguồn và dựng từng frame trực tiếp lúc mã hoá.
+  setVideoProgress(
+    28,
+    currentLang==='ko'
+      ? `움직이는 프레임 소스 준비 완료 · ${getVideoSourceFrames()}프레임`
+      : `Đã chuẩn bị nguồn khung động · ${getVideoSourceFrames()} khung`
+  );
+
+  return {
+    dynamic:true,
+    length:getVideoSourceFrames(),
+    stillImages
+  };
+}
+
+function getSourceFrameCount(sourceFrames){
+  if(sourceFrames && sourceFrames.dynamic) return sourceFrames.length;
+  return Array.isArray(sourceFrames) ? sourceFrames.length : 0;
+}
+
+function renderSourceFrame(sourceFrames,index,ctx,w,h){
+  if(!ctx) throw new Error('CANVAS_2D_UNAVAILABLE');
+
+  if(sourceFrames && sourceFrames.dynamic){
+    drawMotionFrameComposition(
+      ctx,
+      w,
+      h,
+      index % sourceFrames.length,
+      sourceFrames.stillImages
     );
-    if (i%4===0) await waitMs(0);
+    return;
   }
-  return frames;
+
+  const count=getSourceFrameCount(sourceFrames);
+  if(!count) throw new Error('VIDEO_SOURCE_EMPTY');
+
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle='#fff';
+  ctx.fillRect(0,0,w,h);
+  ctx.drawImage(sourceFrames[index%count],0,0,w,h);
 }
 
 function bytes(...arrays){
@@ -2039,20 +2081,36 @@ async function encodeMp4WebCodecs(sourceFrames,w,h,bitrate){
   });
   encoder.configure(config);
   const frameDur=Math.round(1e6/VIDEO_FPS);
-  const sourceFramesCount=getVideoSourceFrames();
+  const sourceFramesCount=getSourceFrameCount(sourceFrames);
   const totalFrames=getVideoTotalFrames();
+
+  const renderCanvas=document.createElement('canvas');
+  renderCanvas.width=w;
+  renderCanvas.height=h;
+  const renderCtx=renderCanvas.getContext('2d',{alpha:false});
+  if(!renderCtx) throw new Error('CANVAS_2D_UNAVAILABLE');
+  renderCtx.imageSmoothingEnabled=true;
+  renderCtx.imageSmoothingQuality='high';
+
   for (let i=0;i<totalFrames;i++){
     while (encoder.encodeQueueSize>8) await waitMs(4);
-    const source=sourceFrames[i%sourceFramesCount];
-    const vf=new VideoFrame(source,{timestamp:i*frameDur,duration:frameDur});
+
+    renderSourceFrame(sourceFrames,i%sourceFramesCount,renderCtx,w,h);
+
+    const vf=new VideoFrame(renderCanvas,{timestamp:i*frameDur,duration:frameDur});
     const keyFrame=(i===0 || i===sourceFramesCount || i===sourceFramesCount*2);
-    encoder.encode(vf,{keyFrame}); vf.close();
+    encoder.encode(vf,{keyFrame});
+    vf.close();
+
     if (i%4===0){
       setVideoProgress(30+55*(i+1)/totalFrames,
         currentLang==='ko' ? `H.264 MP4 인코딩 중… ${i+1}/${totalFrames}` : `Đang mã hoá H.264 → MP4… ${i+1}/${totalFrames}`);
       await waitMs(0);
     }
   }
+
+  renderCanvas.width=1;
+  renderCanvas.height=1;
   await encoder.flush(); encoder.close();
   if (encoderError) throw encoderError;
   samples.sort((a,b)=>a.timestamp-b.timestamp);
@@ -2244,6 +2302,10 @@ async function encodeFallbackMediaRecorder(sourceFrames,w,h,forceMobileSize=fals
 
   const c=makeRecorderCanvas(outW,outH);
   const cx=c.getContext('2d',{alpha:false,desynchronized:false});
+  if(!cx){
+    c.remove();
+    throw new Error('CANVAS_2D_UNAVAILABLE');
+  }
   cx.imageSmoothingEnabled=true;
   cx.imageSmoothingQuality='high';
 
@@ -2255,7 +2317,7 @@ async function encodeFallbackMediaRecorder(sourceFrames,w,h,forceMobileSize=fals
     // Vẽ frame đầu trước khi captureStream để Safari không khởi tạo track rỗng/đen.
     cx.fillStyle='#fff';
     cx.fillRect(0,0,outW,outH);
-    cx.drawImage(sourceFrames[0],0,0,outW,outH);
+    renderSourceFrame(sourceFrames,0,cx,outW,outH);
 
     mediaStream=c.captureStream(VIDEO_FPS);
     if(!mediaStream || !mediaStream.getVideoTracks || !mediaStream.getVideoTracks().length){
@@ -2289,15 +2351,15 @@ async function encodeFallbackMediaRecorder(sourceFrames,w,h,forceMobileSize=fals
     await waitMs(120);
 
     const totalFrames=getVideoTotalFrames();
-    const sourceFramesCount=getVideoSourceFrames();
+    const sourceFramesCount=getSourceFrameCount(sourceFrames);
+    if(!sourceFramesCount) throw new Error('VIDEO_SOURCE_EMPTY');
     const start=performance.now();
 
     for(let i=0;i<totalFrames;i++){
       const target=start+i*(1000/VIDEO_FPS);
       while(performance.now()<target) await nextPaint();
 
-      const source=sourceFrames[i%sourceFramesCount];
-      cx.drawImage(source,0,0,outW,outH);
+      renderSourceFrame(sourceFrames,i%sourceFramesCount,cx,outW,outH);
 
       // Một số bản Safari có requestFrame(); gọi thêm để buộc canvas track nhận frame mới.
       if(track && typeof track.requestFrame==='function'){
@@ -2351,7 +2413,59 @@ async function encodeFallbackMediaRecorder(sourceFrames,w,h,forceMobileSize=fals
 function downloadMp4(blob){
   const ts=new Date(),pad=n=>String(n).padStart(2,'0');
   const name=`photobooth_motion_frame_${ts.getFullYear()}${pad(ts.getMonth()+1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.mp4`;
-  const url=URL.createObjectURL(blob),a=document.createElement('a'); a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);
+  const url=URL.createObjectURL(blob);
+  let file=null;
+  try{
+    if(typeof File!=='undefined') file=new File([blob],name,{type:'video/mp4'});
+  }catch(e){
+    file=null;
+  }
+
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=name;
+  a.rel='noopener';
+  a.style.display='none';
+  document.body.appendChild(a);
+  try{a.click();}catch(e){}
+  a.remove();
+
+  if(IS_IOS_MOBILE){
+    let helper=document.getElementById('mobileMp4SaveButton');
+    if(!helper){
+      helper=document.createElement('button');
+      helper.id='mobileMp4SaveButton';
+      helper.type='button';
+      helper.className='btn btn-primary btn-block';
+      helper.style.marginTop='10px';
+      videoExportStatus.insertAdjacentElement('afterend',helper);
+    }
+
+    helper.hidden=false;
+    helper.textContent=currentLang==='ko'
+      ? '📱 MP4 공유 / 파일에 저장'
+      : '📱 Chia sẻ MP4 / Lưu vào Tệp';
+
+    helper.onclick=async()=>{
+      try{
+        if(file && navigator.canShare && navigator.share && navigator.canShare({files:[file]})){
+          await navigator.share({
+            files:[file],
+            title:'Photo Booth MP4'
+          });
+        }else{
+          window.open(url,'_blank','noopener');
+        }
+      }catch(e){
+        if(e && e.name!=='AbortError') window.open(url,'_blank','noopener');
+      }
+    };
+
+    // Không thu hồi sớm vì người dùng cần bấm nút lưu thủ công sau khi mã hoá.
+    setTimeout(()=>URL.revokeObjectURL(url),10*60*1000);
+  }else{
+    setTimeout(()=>URL.revokeObjectURL(url),15000);
+  }
 }
 
 btnSaveVideo.addEventListener('click',async()=>{
@@ -2444,6 +2558,14 @@ btnSaveVideo.addEventListener('click',async()=>{
       reason=currentLang==='ko'
         ? 'Safari가 빈 MP4를 반환했습니다. 다시 시도해 주세요.'
         : 'Safari trả về tệp MP4 rỗng. Hãy thử lưu lại một lần nữa.';
+    }else if(code==='CANVAS_2D_UNAVAILABLE'){
+      reason=currentLang==='ko'
+        ? 'Safari 캔버스 메모리가 부족합니다. 페이지를 새로 고친 뒤 다시 촬영해 주세요.'
+        : 'Safari không cấp được bộ nhớ canvas. Hãy tải lại trang rồi chụp lại.';
+    }else if(code==='VIDEO_SOURCE_EMPTY'){
+      reason=currentLang==='ko'
+        ? '움직이는 프레임 소스가 비어 있습니다.'
+        : 'Nguồn khung hình chuyển động đang trống.';
     }
 
     setVideoProgress(0,`❌ ${reason}`,'error');
@@ -2469,6 +2591,8 @@ btnSave.addEventListener('click', ()=>{
 
 btnRetake.addEventListener('click', ()=>{
   if (capturing) return;
+  const mobileSaveButton=document.getElementById('mobileMp4SaveButton');
+  if(mobileSaveButton) mobileSaveButton.hidden=true;
   gestureSessionActive = false;
   gestureRequireRelease = false;
   photos = [null,null,null,null];

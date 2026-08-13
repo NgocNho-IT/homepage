@@ -987,7 +987,7 @@
         <button class="btn btn-primary btn-video" id="btnSaveVideo" type="button" disabled data-i18n="videoSaveBtn">🎥 Lưu MP4 khung động</button>
       </div>
       <div class="video-export-progress" aria-hidden="true"><div class="video-export-bar" id="videoExportBar"></div></div>
-      <p class="video-export-status" id="videoExportStatus">Khung 4 ô chuyển động · 1024×1536 · MP4 H.264 chất lượng cao · 15 giây</p>
+      <p class="video-export-status" id="videoExportStatus">Khung 4 ô chuyển động · 30 FPS · MP4 H.264 ưu tiên chất lượng · 15 giây</p>
       <button class="btn btn-danger btn-block" id="btnRetake" data-i18n="retakeBtn">↺ Chụp lại</button>
     </div>
   </section>
@@ -1043,7 +1043,7 @@ const I18N = {
     videoWorkingBtn:"⏳ Đang tạo MP4…",
     videoMobileFallback:"Đang dùng chế độ tương thích iPhone/iPad để tạo MP4…",
     videoMobileRetry:"Đang thử bộ mã hoá MP4 tương thích hơn…",
-    videoStatusIdle:(sec)=>`Khung 4 ô chuyển động · 1024×1536 · MP4 H.264 chất lượng cao · ${sec} giây`,
+    videoStatusIdle:(sec)=>`Khung 4 ô chuyển động · 30 FPS · MP4 H.264 ưu tiên chất lượng · ${sec} giây`,
     progressIdle:"Chưa có ảnh nào",
     progressDone:"Đã chụp đủ 4 ảnh 🎉",
     progressCount:(n)=>`Đã có ${n}/4 ảnh`,
@@ -1111,7 +1111,7 @@ const I18N = {
     videoWorkingBtn:"⏳ MP4 생성 중…",
     videoMobileFallback:"iPhone/iPad 호환 모드로 MP4를 생성 중…",
     videoMobileRetry:"더 호환되는 MP4 인코더를 다시 시도하는 중…",
-    videoStatusIdle:(sec)=>`움직이는 4칸 프레임 · 1024×1536 · 고화질 MP4 H.264 · ${sec}초`,
+    videoStatusIdle:(sec)=>`움직이는 4칸 프레임 · 30 FPS · 최고 화질 MP4 H.264 · ${sec}초`,
     progressIdle:"아직 촬영한 사진이 없어요",
     progressDone:"4장 촬영 완료 🎉",
     progressCount:(n)=>`${n}/4장 촬영됨`,
@@ -1205,15 +1205,19 @@ let currentCaptureSlot = null;
 const IS_IOS_MOBILE =
   /iPad|iPhone|iPod/i.test(navigator.userAgent || '') ||
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const IS_ANDROID_MOBILE = /Android/i.test(navigator.userAgent || '');
+const IS_MOBILE_DEVICE = IS_IOS_MOBILE || IS_ANDROID_MOBILE;
 
-// Safari/iPhone có giới hạn bộ nhớ canvas thấp hơn desktop.
-// 15 fps và 240×180 vẫn đủ nét cho các ô ảnh trong MP4 720×1080,
-// đồng thời giảm mạnh số canvas phải giữ trong RAM.
-const MOTION_CLIP_FPS = IS_IOS_MOBILE ? 15 : 24;
+// Chế độ ưu tiên chất lượng:
+// - 30 FPS trên Windows, iOS và Android.
+// - Nguồn chuyển động lớn hơn để các ô video không bị mờ khi phóng lên.
+// Bộ dựng video chỉ dùng một canvas lớn tại một thời điểm nên vẫn tránh lỗi
+// tràn bộ nhớ canvas từng xuất hiện trên Safari.
+const MOTION_CLIP_FPS = 30;
 const MAX_MOTION_CLIP_SECONDS = 10;
 const MAX_MOTION_CLIP_FRAMES = MOTION_CLIP_FPS * MAX_MOTION_CLIP_SECONDS;
-const MOTION_BUFFER_W = IS_IOS_MOBILE ? 240 : 384;
-const MOTION_BUFFER_H = IS_IOS_MOBILE ? 180 : 288;
+const MOTION_BUFFER_W = IS_IOS_MOBILE ? 240 : (IS_ANDROID_MOBILE ? 320 : 512);
+const MOTION_BUFFER_H = IS_IOS_MOBILE ? 180 : (IS_ANDROID_MOBILE ? 240 : 384);
 
 function getMotionClipSeconds(){
   const sec = Number(captureDelay) || 5;
@@ -1313,7 +1317,7 @@ function motionBufferLoop(ts){
     if(cx){
       drawRawCameraCoverMirrored(cx,video,c.width,c.height);
       motionBuffer.push(c);
-      if(motionBuffer.length>MAX_MOTION_CLIP_FRAMES) motionBuffer.shift();
+      if(motionBuffer.length>getMotionClipFrames()) motionBuffer.shift();
     }else{
       // Safari có thể từ chối tạm thời khi bộ nhớ canvas đang cao.
       // Bỏ qua frame này thay vì làm hỏng toàn bộ trang.
@@ -1353,7 +1357,7 @@ async function startCamera(){
   camError.classList.add('hidden');
   try{
     stream = await navigator.mediaDevices.getUserMedia({
-      video:{ facingMode:'user', width:{ideal:1920}, height:{ideal:1440}, frameRate:{ideal:30} },
+      video:{ facingMode:'user', width:{ideal:2560}, height:{ideal:1920}, frameRate:{ideal:30,max:60} },
       audio:false
     });
     video.srcObject = stream;
@@ -1558,7 +1562,7 @@ function grabFrameDataURL(){
   const cx = c.getContext('2d');
   cx.translate(vw,0); cx.scale(-1,1); // mirror to match preview
   cx.drawImage(video,0,0,vw,vh);
-  return c.toDataURL('image/jpeg',0.92);
+  return c.toDataURL('image/png');
 }
 
 async function runCountdownAndShoot(slotIndex){
@@ -1839,7 +1843,9 @@ async function renderFinal(){
 }
 
 /* ============ MP4 khung chuyển động (WebCodecs + embedded MP4 muxer) ============ */
-const VIDEO_OUT_W = CANVAS_W; // 1024px: xuất đúng độ phân giải gốc của khung để chữ/viền sắc nét
+const VIDEO_OUT_W = IS_IOS_MOBILE ? 960 : CANVAS_W;
+// iPhone/iPad: 960×1440 để sắc nét hơn nhưng vẫn thân thiện với Safari.
+// Android và máy tính: giữ đúng độ phân giải khung gốc 1024×1536.
 const VIDEO_FPS = MOTION_CLIP_FPS;
 const VIDEO_MAX_BYTES = Number.POSITIVE_INFINITY; // không giới hạn dung lượng: ưu tiên chất lượng hình ảnh
 
@@ -2051,14 +2057,44 @@ function muxAvcToMp4(width,height,avcC,samples){
 }
 
 async function findSupportedAvcConfig(width,height,bitrate){
-  if (!('VideoEncoder' in window) || !VideoEncoder.isConfigSupported) return null;
-  const codecs=['avc1.64002A','avc1.640029','avc1.4D402A','avc1.4D4029','avc1.42E02A','avc1.42E029','avc1.640028','avc1.4D4028','avc1.42E028'];
-  for (const codec of codecs){
-    const config={codec,width,height,bitrate,framerate:VIDEO_FPS,latencyMode:'quality',hardwareAcceleration:'no-preference',avc:{format:'avc'}};
-    try{
-      const info=await VideoEncoder.isConfigSupported(config);
-      if (info.supported) return {...config,...info.config,avc:{format:'avc'}};
-    }catch(e){}
+  if(!('VideoEncoder' in window) || !VideoEncoder.isConfigSupported) return null;
+
+  const codecs=[
+    'avc1.64002A','avc1.4D402A','avc1.42E02A',
+    'avc1.640029','avc1.4D4029','avc1.42E029',
+    'avc1.640028','avc1.4D4028','avc1.42E028',
+    'avc1.4D401F','avc1.42E01F','avc1.42001F'
+  ];
+
+  // Chrome Android thường hoạt động tốt nhất với prefer-hardware.
+  // Safari lại có phiên bản chỉ chấp nhận cấu hình tối giản.
+  const variants=[
+    {},
+    {hardwareAcceleration:'prefer-hardware'},
+    {hardwareAcceleration:'no-preference'},
+    {latencyMode:'quality'},
+    {latencyMode:'realtime'},
+    {hardwareAcceleration:'prefer-hardware',latencyMode:'quality'}
+  ];
+
+  for(const codec of codecs){
+    for(const extra of variants){
+      const config={
+        codec,
+        width,
+        height,
+        bitrate,
+        framerate:VIDEO_FPS,
+        avc:{format:'avc'},
+        ...extra
+      };
+      try{
+        const info=await VideoEncoder.isConfigSupported(config);
+        if(info && info.supported){
+          return {...config,...info.config,avc:{format:'avc'}};
+        }
+      }catch(e){}
+    }
   }
   return null;
 }
@@ -2425,16 +2461,19 @@ async function encodeFallbackMediaRecorder(sourceFrames,w,h,forceMobileSize=fals
   if(!('MediaRecorder' in window)) throw new Error('NO_MEDIARECORDER');
   if(!HTMLCanvasElement.prototype.captureStream) throw new Error('NO_CANVAS_CAPTURESTREAM');
 
-  // iPhone/iPad cũ dễ lỗi khi mã hoá canvas 1024x1536 ở bitrate quá cao.
-  // 720x1080 vẫn rất nét nhưng tương thích phần cứng H.264 tốt hơn.
+  // Lần đầu luôn ưu tiên độ phân giải cao:
+  // - iOS: tối đa 960×1440
+  // - Android: tối đa 1024×1536
+  // Chỉ khi bộ mã hóa thiết bị từ chối mới thử lại ở 720×1080.
   let outW=w, outH=h;
-  if(isIOSWebKit()){
-    // Lần đầu: 720×1080 để vẫn nét trên điện thoại.
-    // Nếu Safari vẫn lỗi, lần retry hạ xuống 576×864 để tăng tương thích encoder.
-    outW=Math.min(w,forceMobileSize ? 576 : 720);
+  if(IS_IOS_MOBILE){
+    outW=Math.min(w,forceMobileSize ? 720 : 960);
+    outH=evenNumber(outW * h / w);
+  }else if(IS_ANDROID_MOBILE){
+    outW=Math.min(w,forceMobileSize ? 720 : 1024);
     outH=evenNumber(outW * h / w);
   }else if(forceMobileSize){
-    outW=Math.min(w,720);
+    outW=Math.min(w,900);
     outH=evenNumber(outW * h / w);
   }
 
@@ -2463,7 +2502,7 @@ async function encodeFallbackMediaRecorder(sourceFrames,w,h,forceMobileSize=fals
     }
     track=mediaStream.getVideoTracks()[0];
 
-    const bitrate=isIOSWebKit()?8000000:12000000;
+    const bitrate=IS_IOS_MOBILE?18000000:(IS_ANDROID_MOBILE?22000000:28000000);
     const made=createMp4MediaRecorder(mediaStream,bitrate,getVideoLoopSeconds()*1000);
     recorder=made.rec;
 
@@ -2651,9 +2690,13 @@ btnSaveVideo.addEventListener('click',async()=>{
 
     async function tryWebCodecs(){
       if(!('VideoEncoder' in window)) return null;
-      for(const bitrate of (IS_IOS_MOBILE
-        ? [8000000,6000000,4000000]
-        : [12000000,9000000,6000000])){
+      for(const bitrate of (
+        IS_IOS_MOBILE
+          ? [20000000,16000000,12000000,8000000]
+          : (IS_ANDROID_MOBILE
+              ? [26000000,22000000,16000000,10000000]
+              : [32000000,26000000,20000000,14000000])
+      )){
         try{
           const encoded=await encodeMp4WebCodecs(frames,w,h,bitrate);
           if(encoded) return encoded;

@@ -13,15 +13,17 @@
 <style>
   :root{
     --blue-900:#0b2f6b;
-    --blue-800:#0d3f8f;
-    --blue-700:#1257b8;
-    --blue-600:#1a6fdc;
-    --blue-500:#2f86ea;
-    --blue-100:#dcebff;
-    --blue-50:#f2f8ff;
+    --blue-800:#12458f;
+    --blue-700:#1760bd;
+    --blue-600:#2376dc;
+    --blue-500:#438fe8;
+    --blue-100:#dceaff;
+    --blue-50:#f5f9ff;
     --white:#ffffff;
-    --red:#e0483f;
-    --shadow: 0 10px 30px -12px rgba(11,47,107,.35);
+    --red:#dc4b43;
+    --green:#1f9d66;
+    --text-muted:#5d7495;
+    --shadow:0 14px 34px -18px rgba(11,47,107,.32);
     --radius-lg: 22px;
     --radius-md: 14px;
     --radius-sm: 9px;
@@ -121,11 +123,11 @@
   }
 
   .card{
-    background:var(--white);
+    background:rgba(255,255,255,.97);
     border-radius:var(--radius-lg);
     box-shadow:var(--shadow);
-    border:1px solid var(--blue-100);
-    padding:clamp(16px,2.6vw,26px);
+    border:1px solid rgba(35,118,220,.14);
+    padding:clamp(18px,2.8vw,28px);
   }
   .card h2{
     margin:0 0 4px;
@@ -135,10 +137,11 @@
     display:flex; align-items:center; gap:8px;
   }
   .card .sub{
-    margin:0 0 16px;
-    color:var(--blue-700);
+    margin:0 0 18px;
+    color:var(--text-muted);
     font-size:13px;
     font-weight:500;
+    line-height:1.55;
   }
   .step-badge{
     display:inline-flex; align-items:center; justify-content:center;
@@ -252,6 +255,35 @@
   }
   .option-pill:disabled{opacity:.5; cursor:not-allowed; transform:none;}
 
+  /* ---------- MP4 khung chuyển động ---------- */
+  .save-pair{
+    width:100%;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+  .save-pair .btn{width:100%;}
+  @media (max-width:520px){
+    .save-pair{grid-template-columns:1fr;}
+  }
+  .video-export-progress{
+    width:100%; height:9px; border-radius:999px; overflow:hidden;
+    background:var(--blue-100);
+  }
+  .video-export-bar{
+    width:0%; height:100%;
+    background:linear-gradient(90deg,var(--blue-500),var(--blue-800));
+    transition:width .16s linear;
+  }
+  .video-export-status{
+    width:100%; margin:0; padding:9px 11px; border-radius:10px;
+    background:var(--blue-50); color:var(--blue-700);
+    font-size:11.5px; font-weight:600; line-height:1.55;
+    white-space:pre-line;
+  }
+  .video-export-status.success{background:#effbf5;color:#19764a;border:1px solid #bfead3;}
+  .video-export-status.error{background:#fff3f2;color:var(--red);border:1px solid #f6c9c6;}
+
   .gesture-row{
     display:flex; align-items:center; gap:10px;
     margin-top:12px;
@@ -291,8 +323,9 @@
   .btn{
     appearance:none; border:none; cursor:pointer;
     display:inline-flex; align-items:center; justify-content:center; gap:8px;
-    padding:12px 18px; border-radius:999px;
-    font-weight:700; font-size:14px;
+    padding:clamp(11px,2.8vw,14px) clamp(14px,4vw,18px);
+    border-radius:999px;
+    font-weight:700; font-size:clamp(13px,3.2vw,14px);
     transition:.16s ease; white-space:nowrap;
   }
   .btn:disabled{opacity:.45; cursor:not-allowed;}
@@ -394,6 +427,415 @@
     position:absolute; width:1px;height:1px; overflow:hidden;
     clip:rect(0 0 0 0); white-space:nowrap;
   }
+
+  /* ---------- Responsive ---------- */
+  .stage-controls .btn{flex:1 1 180px;}
+  .btn-row .btn{flex:1 1 180px;}
+
+  @media (max-width: 1024px){
+    header.top{
+      padding:12px clamp(14px,3vw,24px);
+    }
+    main{
+      max-width:960px;
+      padding:18px clamp(14px,3vw,24px) 42px;
+      gap:20px;
+    }
+    .preview-frame{
+      max-width:300px;
+    }
+  }
+
+  @media (max-width: 900px){
+    main{
+      grid-template-columns:1fr;
+      max-width:760px;
+    }
+    .preview-frame{
+      max-width:340px;
+    }
+  }
+
+  @media (max-width: 768px){
+    header.top{
+      position:sticky;
+      flex-wrap:wrap;
+      justify-content:center;
+      gap:10px;
+    }
+    .brand{
+      width:100%;
+      justify-content:center;
+    }
+    .hero{
+      padding:18px 16px 6px;
+    }
+    .hero p{
+      max-width:680px;
+    }
+    main{
+      padding:16px 14px 32px;
+      gap:16px;
+    }
+    .card{
+      padding:16px;
+      border-radius:18px;
+    }
+    .card .sub{
+      font-size:12.5px;
+    }
+    .stage-controls{
+      flex-direction:column;
+    }
+    .stage-controls .btn,
+    .btn-row .btn,
+    .upload-row .btn,
+    .save-pair .btn{
+      width:100%;
+    }
+    .save-pair{
+      grid-template-columns:1fr;
+    }
+    .progress{
+      flex-direction:column;
+      align-items:flex-start;
+      gap:8px;
+    }
+    .camera-options{
+      padding:14px;
+      gap:14px;
+    }
+    .preview-frame{
+      max-width:min(100%,360px);
+    }
+    .option-pill{
+      min-height:42px;
+      font-size:13px;
+    }
+  }
+
+  @media (max-width: 640px){
+    :root{
+      --radius-lg:18px;
+      --radius-md:12px;
+      --radius-sm:10px;
+    }
+    .lang-switch{
+      width:100%;
+      justify-content:center;
+    }
+    .lang-switch button{
+      flex:1 1 0;
+      min-width:0;
+    }
+    .hero h1{
+      font-size:clamp(22px,6vw,30px);
+    }
+    .hero p{
+      font-size:13.5px;
+    }
+    .card h2{
+      font-size:17px;
+    }
+    .slots{
+      grid-template-columns:1fr;
+    }
+    .slot{
+      aspect-ratio:4 / 3;
+    }
+    .option-pills{
+      gap:8px;
+    }
+    .option-pill{
+      flex:1 1 calc(50% - 8px);
+      min-width:0;
+      text-align:center;
+      justify-content:center;
+      padding:10px 12px;
+    }
+    .gesture-row{
+      align-items:flex-start;
+    }
+    .gesture-title{
+      font-size:12px;
+    }
+    .gesture-hint{
+      font-size:10.5px;
+    }
+    .video-export-status,
+    .hint,
+    .warn,
+    .progress-text{
+      font-size:12px;
+    }
+    footer{
+      padding:16px 14px 22px;
+      font-size:11.5px;
+    }
+  }
+
+  @media (max-width: 420px){
+    header.top{
+      padding:10px 12px;
+    }
+    .brand .mark{
+      width:36px;
+      height:36px;
+      border-radius:10px;
+      font-size:18px;
+    }
+    .brand .name{
+      font-size:18px;
+    }
+    .countdown-label{
+      font-size:13px;
+    }
+    .btn{
+      min-height:46px;
+    }
+    .option-pill{
+      flex:1 1 100%;
+    }
+    .preview-frame{
+      max-width:100%;
+    }
+  }
+
+
+  /* ---------- Polished UX ---------- */
+  .workflow-guide{
+    max-width:1180px;
+    margin:10px auto 0;
+    padding:0 clamp(16px,4vw,36px);
+    display:grid;
+    grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;
+    gap:10px;
+    align-items:center;
+  }
+  .workflow-item{
+    min-height:78px;
+    padding:14px;
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    background:rgba(255,255,255,.88);
+    border:1px solid rgba(35,118,220,.13);
+    border-radius:16px;
+    box-shadow:0 8px 22px -18px rgba(11,47,107,.36);
+  }
+  .workflow-num{
+    width:28px;height:28px;flex:none;
+    border-radius:50%;
+    display:inline-flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg,var(--blue-600),var(--blue-800));
+    color:#fff;font-size:12px;font-weight:800;
+  }
+  .workflow-item strong{
+    display:block;
+    color:var(--blue-900);
+    font-size:12.5px;
+    line-height:1.35;
+    margin-bottom:4px;
+  }
+  .workflow-item small{
+    display:block;
+    color:var(--text-muted);
+    font-size:10.5px;
+    line-height:1.45;
+  }
+  .workflow-arrow{
+    color:var(--blue-500);
+    font-size:18px;
+    font-weight:800;
+    opacity:.7;
+  }
+
+  .capture-state{
+    display:flex;
+    align-items:center;
+    gap:9px;
+    min-height:40px;
+    margin:0 0 12px;
+    padding:9px 12px;
+    border-radius:12px;
+    background:var(--blue-50);
+    border:1px solid var(--blue-100);
+    color:var(--blue-800);
+    font-size:12.5px;
+    font-weight:750;
+  }
+  .capture-state-dot{
+    width:9px;height:9px;
+    border-radius:50%;
+    background:#9bb7da;
+    box-shadow:0 0 0 4px rgba(155,183,218,.17);
+    flex:none;
+  }
+  .capture-state.ready{
+    background:#f2f8ff;
+    border-color:#cae0ff;
+  }
+  .capture-state.ready .capture-state-dot{
+    background:var(--blue-600);
+    box-shadow:0 0 0 4px rgba(35,118,220,.15);
+  }
+  .capture-state.shooting{
+    background:#fff8ea;
+    border-color:#ffe0a3;
+    color:#8a5a00;
+  }
+  .capture-state.shooting .capture-state-dot{
+    background:#f0a51a;
+    box-shadow:0 0 0 4px rgba(240,165,26,.17);
+    animation:statusPulse 1s ease-in-out infinite;
+  }
+  .capture-state.done{
+    background:#effbf5;
+    border-color:#bfead3;
+    color:#19764a;
+  }
+  .capture-state.done .capture-state-dot{
+    background:var(--green);
+    box-shadow:0 0 0 4px rgba(31,157,102,.14);
+  }
+  .capture-state.exporting{
+    background:#f4f1ff;
+    border-color:#d9d0ff;
+    color:#5941a9;
+  }
+  .capture-state.exporting .capture-state-dot{
+    background:#7862d8;
+    box-shadow:0 0 0 4px rgba(120,98,216,.14);
+    animation:statusPulse 1s ease-in-out infinite;
+  }
+  @keyframes statusPulse{
+    50%{transform:scale(1.35);opacity:.65;}
+  }
+
+  .capture-order{
+    margin-top:14px;
+    padding:13px 14px;
+    border:1px solid var(--blue-100);
+    background:linear-gradient(180deg,#fbfdff,#f6faff);
+    border-radius:var(--radius-md);
+  }
+  .capture-order-title{
+    margin-bottom:10px;
+    color:var(--blue-800);
+    font-size:12px;
+    font-weight:800;
+  }
+  .capture-order .dots{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:8px;
+  }
+  .shot-step{
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:5px;
+  }
+  .shot-step small{
+    color:var(--text-muted);
+    font-size:10px;
+    font-weight:700;
+  }
+  .capture-order .dot{
+    width:30px;height:30px;
+    display:flex;align-items:center;justify-content:center;
+    background:#fff;
+    border:2px solid #cfe0f7;
+    color:var(--blue-500);
+    font-size:11px;
+    font-weight:800;
+  }
+  .capture-order .dot.filled{
+    color:#fff;
+    background:var(--green);
+    border-color:var(--green);
+  }
+  .capture-order .dot.active{
+    color:#fff;
+    background:var(--blue-600);
+    border-color:var(--blue-600);
+    box-shadow:0 0 0 4px rgba(35,118,220,.14);
+  }
+  .capture-order .progress{
+    margin-top:11px;
+    padding-top:10px;
+    border-top:1px solid var(--blue-100);
+  }
+
+  .stage-controls{
+    gap:12px;
+    margin-top:16px;
+  }
+  .camera-options{
+    margin-top:18px;
+  }
+  .gesture-row{
+    margin-top:14px;
+  }
+  .upload-row{
+    margin-bottom:20px;
+  }
+  .preview-wrap{
+    gap:16px;
+  }
+  .save-pair{
+    gap:12px;
+  }
+
+  .btn-primary{
+    box-shadow:0 9px 22px -10px rgba(19,90,200,.62);
+  }
+  .btn-capture:not(:disabled),
+  .btn-video:not(:disabled){
+    background:linear-gradient(135deg,#176fe0,#0d4fa7);
+    box-shadow:0 11px 24px -10px rgba(13,79,167,.72);
+  }
+  .btn-capture:hover:not(:disabled),
+  .btn-video:hover:not(:disabled){
+    transform:translateY(-1px);
+    box-shadow:0 13px 28px -10px rgba(13,79,167,.78);
+  }
+
+  @media (max-width:900px){
+    .workflow-guide{
+      max-width:760px;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+    }
+    .workflow-arrow{display:none;}
+  }
+  @media (max-width:640px){
+    .workflow-guide{
+      margin-top:8px;
+      padding:0 14px;
+      grid-template-columns:1fr;
+    }
+    .workflow-item{
+      min-height:auto;
+      padding:12px 13px;
+    }
+    .workflow-item strong{font-size:12px;}
+    .workflow-item small{font-size:10.5px;}
+    .capture-state{
+      font-size:12px;
+    }
+    .capture-order{
+      padding:12px;
+    }
+    .capture-order .dots{
+      gap:5px;
+    }
+    .capture-order .dot{
+      width:28px;height:28px;
+    }
+  }
+
 </style>
 </head>
 <body>
@@ -420,11 +862,38 @@
   <p data-i18n="heroSub">Bật camera, đếm ngược tự động và ghép ảnh vào khung của ĐH Đông Á × ĐH Quốc gia Jeju — hoặc tải ảnh có sẵn lên nếu bạn không có camera.</p>
 </section>
 
+<section class="workflow-guide" aria-label="Hướng dẫn sử dụng">
+  <div class="workflow-item">
+    <span class="workflow-num">1</span>
+    <div><strong data-i18n="flow1Title">Bật camera</strong><small data-i18n="flow1Sub">Cho phép truy cập camera để bắt đầu.</small></div>
+  </div>
+  <div class="workflow-arrow">→</div>
+  <div class="workflow-item">
+    <span class="workflow-num">2</span>
+    <div><strong data-i18n="flow2Title">Chọn hẹn giờ & bộ lọc</strong><small data-i18n="flow2Sub">Chọn 3, 5 hoặc 10 giây và màu ảnh.</small></div>
+  </div>
+  <div class="workflow-arrow">→</div>
+  <div class="workflow-item">
+    <span class="workflow-num">3</span>
+    <div><strong data-i18n="flow3Title">Chụp đủ 4 ảnh</strong><small data-i18n="flow3Sub">Theo thứ tự 1 → 2 → 3 → 4.</small></div>
+  </div>
+  <div class="workflow-arrow">→</div>
+  <div class="workflow-item">
+    <span class="workflow-num">4</span>
+    <div><strong data-i18n="flow4Title">Lưu kết quả</strong><small data-i18n="flow4Sub">Lưu ảnh tĩnh hoặc MP4 khung động.</small></div>
+  </div>
+</section>
+
 <main>
   <!-- LEFT: CAMERA -->
   <section class="card">
     <h2><span class="step-badge">1</span><span data-i18n="camTitle">Camera</span></h2>
     <p class="sub" data-i18n="camSub">Bật webcam rồi bấm bắt đầu chụp để tự động chụp 4 tấm.</p>
+
+    <div class="capture-state" id="captureState" role="status" aria-live="polite">
+      <span class="capture-state-dot"></span>
+      <span id="captureStateText">Chưa bật camera</span>
+    </div>
 
     <div class="stage off" id="stage">
       <video id="video" playsinline muted></video>
@@ -436,7 +905,7 @@
 
     <div class="stage-controls">
       <button class="btn btn-primary" id="btnCamToggle" data-i18n="camOnBtn">Bật camera</button>
-      <button class="btn btn-outline" id="btnStartCapture" disabled data-i18n="startCaptureBtn">Bắt đầu chụp</button>
+      <button class="btn btn-primary btn-capture" id="btnStartCapture" disabled data-i18n="startCaptureBtn">Bắt đầu chụp</button>
     </div>
 
     <div class="camera-options" aria-label="Tùy chọn chụp ảnh">
@@ -471,14 +940,17 @@
       <span class="gesture-dot" id="gestureDot"></span>
     </label>
 
-    <div class="progress">
+    <div class="capture-order">
+      <div class="capture-order-title" data-i18n="captureOrderTitle">Thứ tự chụp</div>
       <div class="dots" id="dots">
-        <span class="dot" data-i="0"></span>
-        <span class="dot" data-i="1"></span>
-        <span class="dot" data-i="2"></span>
-        <span class="dot" data-i="3"></span>
+        <div class="shot-step"><span class="dot" data-i="0">1</span><small data-i18n="shot1">Ảnh 1</small></div>
+        <div class="shot-step"><span class="dot" data-i="1">2</span><small data-i18n="shot2">Ảnh 2</small></div>
+        <div class="shot-step"><span class="dot" data-i="2">3</span><small data-i18n="shot3">Ảnh 3</small></div>
+        <div class="shot-step"><span class="dot" data-i="3">4</span><small data-i18n="shot4">Ảnh 4</small></div>
       </div>
-      <span class="progress-text" id="progressText" data-i18n="progressIdle">Chưa có ảnh nào</span>
+      <div class="progress">
+        <span class="progress-text" id="progressText" data-i18n="progressIdle">Chưa có ảnh nào</span>
+      </div>
     </div>
 
     <p class="warn hidden" id="camError"></p>
@@ -508,10 +980,13 @@
     <div class="preview-wrap">
       <div class="preview-frame"><canvas id="finalCanvas" width="1024" height="1536"></canvas></div>
       <p class="warn" id="needAllWarn" data-i18n="needAllWarn">Cần đủ 4 ảnh để lưu khung.</p>
-      <div class="btn-row" style="width:100%;">
-        <button class="btn btn-primary btn-block" id="btnSave" disabled data-i18n="saveBtn">💾 Lưu ảnh</button>
-        <button class="btn btn-danger btn-block" id="btnRetake" data-i18n="retakeBtn">↺ Chụp lại</button>
+      <div class="save-pair">
+        <button class="btn btn-primary" id="btnSave" disabled data-i18n="saveBtn">💾 Lưu ảnh</button>
+        <button class="btn btn-primary btn-video" id="btnSaveVideo" type="button" disabled data-i18n="videoSaveBtn">🎥 Lưu MP4 khung động</button>
       </div>
+      <div class="video-export-progress" aria-hidden="true"><div class="video-export-bar" id="videoExportBar"></div></div>
+      <p class="video-export-status" id="videoExportStatus">Khung 4 ô chuyển động · 1024×1536 · MP4 H.264 chất lượng cao · 15 giây</p>
+      <button class="btn btn-danger btn-block" id="btnRetake" data-i18n="retakeBtn">↺ Chụp lại</button>
     </div>
   </section>
 </main>
@@ -524,6 +999,25 @@ const I18N = {
   vi:{
     heroTitle:"Chụp 4 khoảnh khắc, in thành một khung ảnh",
     heroSub:"Bật camera, đếm ngược tự động và ghép ảnh vào khung của ĐH Đông Á × ĐH Quốc gia Jeju — hoặc tải ảnh có sẵn lên nếu bạn không có camera.",
+    flow1Title:"Bật camera",
+    flow1Sub:"Cho phép truy cập camera để bắt đầu.",
+    flow2Title:"Chọn hẹn giờ & bộ lọc",
+    flow2Sub:"Chọn 3, 5 hoặc 10 giây và màu ảnh.",
+    flow3Title:"Chụp đủ 4 ảnh",
+    flow3Sub:"Theo thứ tự 1 → 2 → 3 → 4.",
+    flow4Title:"Lưu kết quả",
+    flow4Sub:"Lưu ảnh tĩnh hoặc MP4 khung động.",
+    captureOrderTitle:"Thứ tự chụp",
+    shot1:"Ảnh 1",
+    shot2:"Ảnh 2",
+    shot3:"Ảnh 3",
+    shot4:"Ảnh 4",
+    statusCameraOff:"Chưa bật camera · Bật camera để bắt đầu",
+    statusReady:(n)=>`Sẵn sàng · Ảnh tiếp theo ${n}/4`,
+    statusGesture:(n)=>`Đang chờ ✌️ cho ảnh ${n}/4`,
+    statusCapturing:(n)=>`Đang chụp ảnh ${n}/4…`,
+    statusDone:"Hoàn tất · Đã đủ 4 ảnh",
+    statusExporting:"Đang tạo MP4 khung động…",
     camTitle:"Camera",
     camSub:"Bật webcam rồi bấm bắt đầu chụp để tự động chụp 4 tấm.",
     camOffHint:"Camera đang tắt. Bấm “Bật camera” để bắt đầu.",
@@ -542,6 +1036,12 @@ const I18N = {
     filterCool:"Tông lạnh",
     filterBW:"Trắng đen",
     filterSepia:"Sepia",
+    videoExportTitle:"Lưu khung chuyển động thành MP4",
+        videoSaveBtn:"🎥 Lưu MP4 khung động",
+    videoWorkingBtn:"⏳ Đang tạo MP4…",
+    videoMobileFallback:"Đang dùng chế độ tương thích iPhone/iPad để tạo MP4…",
+    videoMobileRetry:"Đang thử bộ mã hoá MP4 tương thích hơn…",
+    videoStatusIdle:(sec)=>`Khung 4 ô chuyển động · 1024×1536 · MP4 H.264 chất lượng cao · ${sec} giây`,
     progressIdle:"Chưa có ảnh nào",
     progressDone:"Đã chụp đủ 4 ảnh 🎉",
     progressCount:(n)=>`Đã có ${n}/4 ảnh`,
@@ -567,6 +1067,25 @@ const I18N = {
   ko:{
     heroTitle:"네 장의 순간을 찍어 하나의 프레임으로 완성하세요",
     heroSub:"카메라를 켜고 자동 카운트다운으로 촬영한 뒤, 동아대학교 × 제주대학교 프레임에 합성하세요. 카메라가 없다면 저장된 사진을 업로드할 수도 있어요.",
+    flow1Title:"카메라 켜기",
+    flow1Sub:"카메라 접근을 허용하고 시작하세요.",
+    flow2Title:"타이머 & 필터 선택",
+    flow2Sub:"3, 5, 10초와 원하는 필터를 선택하세요.",
+    flow3Title:"사진 4장 촬영",
+    flow3Sub:"1 → 2 → 3 → 4 순서로 촬영합니다.",
+    flow4Title:"결과 저장",
+    flow4Sub:"사진 또는 움직이는 MP4 프레임으로 저장합니다.",
+    captureOrderTitle:"촬영 순서",
+    shot1:"사진 1",
+    shot2:"사진 2",
+    shot3:"사진 3",
+    shot4:"사진 4",
+    statusCameraOff:"카메라 꺼짐 · 카메라를 켜서 시작하세요",
+    statusReady:(n)=>`준비 완료 · 다음 사진 ${n}/4`,
+    statusGesture:(n)=>`${n}/4번째 사진을 위해 ✌️ 기다리는 중`,
+    statusCapturing:(n)=>`${n}/4번째 사진 촬영 중…`,
+    statusDone:"완료 · 사진 4장 준비됨",
+    statusExporting:"움직이는 MP4 프레임 생성 중…",
     camTitle:"카메라",
     camSub:"웹캠을 켠 후 촬영 시작을 누르면 자동으로 4장을 촬영합니다.",
     camOffHint:"카메라가 꺼져 있습니다. “카메라 켜기”를 눌러 시작하세요.",
@@ -585,6 +1104,12 @@ const I18N = {
     filterCool:"쿨톤",
     filterBW:"흑백",
     filterSepia:"세피아",
+    videoExportTitle:"움직이는 프레임을 MP4로 저장",
+        videoSaveBtn:"🎥 움직이는 프레임 MP4 저장",
+    videoWorkingBtn:"⏳ MP4 생성 중…",
+    videoMobileFallback:"iPhone/iPad 호환 모드로 MP4를 생성 중…",
+    videoMobileRetry:"더 호환되는 MP4 인코더를 다시 시도하는 중…",
+    videoStatusIdle:(sec)=>`움직이는 4칸 프레임 · 1024×1536 · 고화질 MP4 H.264 · ${sec}초`,
     progressIdle:"아직 촬영한 사진이 없어요",
     progressDone:"4장 촬영 완료 🎉",
     progressCount:(n)=>`${n}/4장 촬영됨`,
@@ -620,6 +1145,8 @@ function applyI18n(){
   // dynamic bits that depend on state
   btnCamToggle.textContent = camOn ? dict.camOffBtn : dict.camOnBtn;
   btnStartCapture.textContent = capturing ? dict.capturingBtn : (gestureSessionActive ? dict.gestureWaitingBtn : dict.startCaptureBtn);
+  if (typeof btnSaveVideo !== 'undefined' && btnSaveVideo) btnSaveVideo.textContent = videoExportBusy ? dict.videoWorkingBtn : dict.videoSaveBtn;
+  if (typeof videoExportStatus !== 'undefined' && videoExportStatus && !videoExportBusy && !videoExportStatus.classList.contains('success') && !videoExportStatus.classList.contains('error')) videoExportStatus.textContent = typeof dict.videoStatusIdle === 'function' ? dict.videoStatusIdle(getVideoTotalSeconds()) : dict.videoStatusIdle;
   updateProgressText();
   document.querySelectorAll('.lang-switch button').forEach(b=>{
     b.classList.toggle('active', b.dataset.lang === currentLang);
@@ -641,6 +1168,8 @@ const countdownNum = document.getElementById('countdownNum');
 const countdownLabel = document.getElementById('countdownLabel');
 const dotsEls = [...document.querySelectorAll('.dot')];
 const progressText = document.getElementById('progressText');
+const captureState = document.getElementById('captureState');
+const captureStateText = document.getElementById('captureStateText');
 const slotsEls = [...document.querySelectorAll('.slot')];
 const fileInput = document.getElementById('fileInput');
 const btnUpload = document.getElementById('btnUpload');
@@ -651,6 +1180,9 @@ const btnRetake = document.getElementById('btnRetake');
 const needAllWarn = document.getElementById('needAllWarn');
 const timerPills = [...document.querySelectorAll('.timer-pill')];
 const filterPills = [...document.querySelectorAll('.filter-pill')];
+const btnSaveVideo = document.getElementById('btnSaveVideo');
+const videoExportBar = document.getElementById('videoExportBar');
+const videoExportStatus = document.getElementById('videoExportStatus');
 
 /* ============ State ============ */
 let stream = null;
@@ -661,6 +1193,42 @@ let captureDelay = 5;
 let activeFilter = 'original';
 let gestureSessionActive = false;
 let gestureRequireRelease = false;
+let videoExportBusy = false;
+let currentCaptureSlot = null;
+
+// Mỗi lần chụp giữ lại đoạn chuyển động ngay trước khoảnh khắc chụp.
+// Độ dài đoạn này tự bám theo lựa chọn hẹn giờ: 3 / 5 / 10 giây.
+// MP4 cuối sẽ lấy đúng độ dài đó rồi nhân 3 lần:
+// 3s -> 9s, 5s -> 15s, 10s -> 30s.
+const MOTION_CLIP_FPS = 24;
+const MAX_MOTION_CLIP_SECONDS = 10;
+const MAX_MOTION_CLIP_FRAMES = MOTION_CLIP_FPS * MAX_MOTION_CLIP_SECONDS;
+const MOTION_BUFFER_W = 384;
+const MOTION_BUFFER_H = 288;
+
+function getMotionClipSeconds(){
+  const sec = Number(captureDelay) || 5;
+  return sec <= 3 ? 3 : (sec >= 10 ? 10 : 5);
+}
+function getMotionClipFrames(){
+  return MOTION_CLIP_FPS * getMotionClipSeconds();
+}
+function getVideoLoopSeconds(){
+  return getMotionClipSeconds();
+}
+function getVideoTotalSeconds(){
+  return getVideoLoopSeconds() * 3;
+}
+function getVideoSourceFrames(){
+  return getMotionClipFrames();
+}
+function getVideoTotalFrames(){
+  return VIDEO_FPS * getVideoTotalSeconds();
+}
+let motionBuffer = [];
+let motionClips = [null,null,null,null];
+let motionBufferRaf = null;
+let motionBufferLastTs = 0;
 
 const FILTERS = {
   original:'none',
@@ -682,13 +1250,17 @@ function refreshSlotFilters(){
 function setOptionLock(locked){
   timerPills.forEach(btn=>btn.disabled = locked);
   filterPills.forEach(btn=>btn.disabled = locked);
+  if (typeof btnSaveVideo !== 'undefined' && btnSaveVideo) btnSaveVideo.disabled = locked || videoExportBusy || photos.filter(Boolean).length < 4;
 }
 
 timerPills.forEach(btn=>{
   btn.addEventListener('click', ()=>{
-    if (capturing) return;
+    if (capturing || videoExportBusy) return;
     captureDelay = Number(btn.dataset.delay) || 5;
     timerPills.forEach(b=>b.classList.toggle('active', b===btn));
+    if (!videoExportStatus.classList.contains('success') && !videoExportStatus.classList.contains('error')){
+      applyI18n();
+    }
   });
 });
 filterPills.forEach(btn=>{
@@ -702,12 +1274,64 @@ filterPills.forEach(btn=>{
   });
 });
 
+/* ============ Live motion buffer for each shot ============ */
+function drawRawCameraCoverMirrored(ctx, videoEl, w, h){
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  const vw = videoEl.videoWidth || 1920, vh = videoEl.videoHeight || 1440;
+  const scale = Math.max(w / vw, h / vh);
+  const sw = w / scale, sh = h / scale;
+  const sx = (vw - sw) / 2, sy = (vh - sh) / 2;
+  ctx.save();
+  ctx.translate(w,0);
+  ctx.scale(-1,1);
+  ctx.drawImage(videoEl, sx,sy,sw,sh, 0,0,w,h);
+  ctx.restore();
+}
+
+function motionBufferLoop(ts){
+  if (!camOn || video.readyState < 2){
+    motionBufferRaf = null;
+    return;
+  }
+  const interval = 1000 / MOTION_CLIP_FPS;
+  if (!motionBufferLastTs || ts - motionBufferLastTs >= interval - 2){
+    motionBufferLastTs = ts;
+    const c = document.createElement('canvas');
+    c.width = MOTION_BUFFER_W;
+    c.height = MOTION_BUFFER_H;
+    const cx = c.getContext('2d',{alpha:false});
+    drawRawCameraCoverMirrored(cx, video, c.width, c.height);
+    motionBuffer.push(c);
+    if (motionBuffer.length > MAX_MOTION_CLIP_FRAMES) motionBuffer.shift();
+  }
+  motionBufferRaf = requestAnimationFrame(motionBufferLoop);
+}
+
+function startMotionBuffer(){
+  if (motionBufferRaf || !camOn) return;
+  motionBufferLastTs = 0;
+  motionBufferRaf = requestAnimationFrame(motionBufferLoop);
+}
+function stopMotionBuffer(){
+  if (motionBufferRaf){ cancelAnimationFrame(motionBufferRaf); motionBufferRaf = null; }
+  motionBufferLastTs = 0;
+  motionBuffer = [];
+}
+function snapshotMotionClip(){
+  if (!motionBuffer.length) return null;
+  const needed = getMotionClipFrames();
+  const frames = motionBuffer.slice(-needed);
+  while (frames.length < needed) frames.unshift(frames[0]);
+  return frames.slice();
+}
+
 /* ============ Camera ============ */
 async function startCamera(){
   camError.classList.add('hidden');
   try{
     stream = await navigator.mediaDevices.getUserMedia({
-      video:{ facingMode:'user', width:{ideal:1280}, height:{ideal:960} },
+      video:{ facingMode:'user', width:{ideal:1920}, height:{ideal:1440}, frameRate:{ideal:30} },
       audio:false
     });
     video.srcObject = stream;
@@ -715,6 +1339,7 @@ async function startCamera(){
     camOn = true;
     stage.classList.remove('off');
     btnStartCapture.disabled = false;
+    startMotionBuffer();
     startGestureLoop();
   }catch(err){
     camOn = false;
@@ -731,6 +1356,7 @@ function stopCamera(){
   gestureSessionActive = false;
   gestureRequireRelease = false;
   btnStartCapture.disabled = true;
+  stopMotionBuffer();
   stopGestureLoop();
   setOptionLock(false);
   applyI18n();
@@ -915,6 +1541,8 @@ function grabFrameDataURL(){
 
 async function runCountdownAndShoot(slotIndex){
   const dict = I18N[currentLang];
+  currentCaptureSlot = slotIndex;
+  updateCaptureStatus();
   countdownOverlay.classList.add('show');
   countdownLabel.textContent = dict.countdownLabel(slotIndex+1);
   const seconds = Math.max(1, captureDelay);
@@ -929,6 +1557,7 @@ async function runCountdownAndShoot(slotIndex){
   countdownOverlay.classList.remove('show');
   // flash + capture
   flashEl.classList.add('show');
+  motionClips[slotIndex] = snapshotMotionClip();
   const dataURL = grabFrameDataURL();
   photos[slotIndex] = dataURL;
   renderSlot(slotIndex);
@@ -936,6 +1565,8 @@ async function runCountdownAndShoot(slotIndex){
   await sleep(160);
   flashEl.classList.remove('show');
   await sleep(700);
+  currentCaptureSlot = null;
+  updateCaptureStatus();
 }
 
 btnStartCapture.addEventListener('click', async ()=>{
@@ -997,6 +1628,7 @@ function renderSlot(i){
     del.addEventListener('click', (e)=>{
       e.stopPropagation();
       photos[i] = null;
+      motionClips[i] = null;
       renderSlot(i);
       renderFinal();
       updateProgressText();
@@ -1011,6 +1643,35 @@ function renderSlot(i){
   }
   updateProgressText();
 }
+function updateCaptureStatus(){
+  if (!captureState || !captureStateText) return;
+  const dict = I18N[currentLang];
+  const count = photos.filter(Boolean).length;
+  const next = Math.min(4, Math.max(1, (nextEmptyPhotoIndex() >= 0 ? nextEmptyPhotoIndex() : count) + 1));
+
+  captureState.classList.remove('ready','shooting','done','exporting');
+
+  if (videoExportBusy){
+    captureState.classList.add('exporting');
+    captureStateText.textContent = dict.statusExporting;
+  }else if (capturing){
+    captureState.classList.add('shooting');
+    const shot = currentCaptureSlot !== null ? currentCaptureSlot + 1 : next;
+    captureStateText.textContent = dict.statusCapturing(shot);
+  }else if (count === 4){
+    captureState.classList.add('done');
+    captureStateText.textContent = dict.statusDone;
+  }else if (!camOn){
+    captureStateText.textContent = dict.statusCameraOff;
+  }else if (gestureSessionActive && gestureToggle && gestureToggle.checked){
+    captureState.classList.add('ready');
+    captureStateText.textContent = dict.statusGesture(next);
+  }else{
+    captureState.classList.add('ready');
+    captureStateText.textContent = dict.statusReady(next);
+  }
+}
+
 function updateProgressText(){
   const dict = I18N[currentLang];
   const count = photos.filter(Boolean).length;
@@ -1028,7 +1689,9 @@ function updateProgressText(){
   }
 
   btnSave.disabled = count < 4;
+  if (btnSaveVideo) btnSaveVideo.disabled = videoExportBusy || count < 4;
   needAllWarn.classList.toggle('hidden', count===4);
+  updateCaptureStatus();
 }
 
 /* ============ Upload ============ */
@@ -1041,6 +1704,7 @@ fileInput.addEventListener('change', async (e)=>{
     if (idx>=4) break;
     const dataURL = await fileToDataURL(file);
     photos[idx] = dataURL;
+    motionClips[idx] = null; // ảnh tải lên không có đoạn chuyển động riêng
     renderSlot(idx);
   }
   renderFinal();
@@ -1152,6 +1816,642 @@ async function renderFinal(){
   }
 }
 
+/* ============ MP4 khung chuyển động (WebCodecs + embedded MP4 muxer) ============ */
+const VIDEO_OUT_W = CANVAS_W; // 1024px: xuất đúng độ phân giải gốc của khung để chữ/viền sắc nét
+const VIDEO_FPS = MOTION_CLIP_FPS;
+const VIDEO_MAX_BYTES = Number.POSITIVE_INFINITY; // không giới hạn dung lượng: ưu tiên chất lượng hình ảnh
+
+function evenNumber(n){ n=Math.max(2,Math.round(n)); return n%2===0?n:n+1; }
+function nextPaint(){ return new Promise(r=>requestAnimationFrame(()=>r())); }
+function waitMs(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+function setVideoProgress(percent, message, kind=''){
+  videoExportBar.style.width = `${Math.max(0,Math.min(100,percent))}%`;
+  videoExportStatus.classList.remove('success','error');
+  if (kind) videoExportStatus.classList.add(kind);
+  videoExportStatus.textContent = message;
+}
+function formatBytes(bytes){
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024*1024) return `${(bytes/1024).toFixed(1)} KB`;
+  return `${(bytes/1024/1024).toFixed(2)} MB`;
+}
+function exportSize(){
+  return {width:VIDEO_OUT_W,height:evenNumber(VIDEO_OUT_W * CANVAS_H / CANVAS_W)};
+}
+
+function setVideoExportLock(locked){
+  videoExportBusy = locked;
+  btnSaveVideo.disabled = locked || photos.filter(Boolean).length < 4;
+  btnCamToggle.disabled = locked;
+  btnStartCapture.disabled = locked || !camOn || capturing || gestureSessionActive;
+  btnUpload.disabled = locked;
+  btnSave.disabled = locked || photos.filter(Boolean).length < 4;
+  btnRetake.disabled = locked;
+  timerPills.forEach(b=>b.disabled=locked || capturing);
+  filterPills.forEach(b=>b.disabled=locked || capturing);
+  gestureToggle.disabled = locked;
+  applyI18n();
+}
+
+async function ensureFrameImageReady(){
+  if (frameReady) return;
+  await new Promise((resolve,reject)=>{
+    const done=()=>{ cleanup(); resolve(); };
+    const fail=()=>{ cleanup(); reject(new Error('FRAME_NOT_READY')); };
+    const cleanup=()=>{ frameImg.removeEventListener('load',done); frameImg.removeEventListener('error',fail); };
+    frameImg.addEventListener('load',done,{once:true});
+    frameImg.addEventListener('error',fail,{once:true});
+  });
+}
+
+async function loadStillImagesForVideo(){
+  const images=[];
+  for (let i=0;i<4;i++) images.push(photos[i] ? await loadImg(photos[i]) : null);
+  return images;
+}
+
+function drawCoverScaled(ctx,img,dx,dy,dw,dh){
+  const iw=img.naturalWidth||img.videoWidth||img.width;
+  const ih=img.naturalHeight||img.videoHeight||img.height;
+  if (!iw || !ih) return;
+  const scale=Math.max(dw/iw,dh/ih)*PHOTO_ZOOM;
+  const sw=dw/scale, sh=dh/scale;
+  const sx=(iw-sw)/2, sy=(ih-sh)/2;
+  ctx.drawImage(img,sx,sy,sw,sh,dx,dy,dw,dh);
+}
+
+function drawMotionFrameComposition(ctx,w,h,sourceIndex,stillImages){
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle='#fff';
+  ctx.fillRect(0,0,w,h);
+  const sx=w/CANVAS_W, sy=h/CANVAS_H;
+
+  for (let row=0;row<4;row++){
+    const clip=motionClips[row];
+    const source=(clip && clip.length) ? clip[sourceIndex % clip.length] : stillImages[row];
+    if (!source) continue;
+    ctx.save();
+    ctx.filter=currentFilterCss();
+    for (const rect of [SLOT_RECTS[row*2],SLOT_RECTS[row*2+1]]){
+      const [x,y,rw,rh]=rect;
+      drawCoverScaled(
+        ctx,source,
+        (x-PHOTO_BLEED)*sx,(y-PHOTO_BLEED)*sy,
+        (rw+PHOTO_BLEED*2)*sx,(rh+PHOTO_BLEED*2)*sy
+      );
+    }
+    ctx.restore();
+  }
+  ctx.drawImage(frameImg,0,0,w,h);
+}
+
+async function buildThreeSecondFrameLoop(w,h){
+  await ensureFrameImageReady();
+  const stillImages=await loadStillImagesForVideo();
+  const totalSourceFrames=getVideoSourceFrames();
+  const work=document.createElement('canvas'); work.width=w; work.height=h;
+  const ctx=work.getContext('2d',{alpha:false});
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  const frames=[];
+  for (let i=0;i<totalSourceFrames;i++){
+    drawMotionFrameComposition(ctx,w,h,i,stillImages);
+    const snap=document.createElement('canvas'); snap.width=w; snap.height=h;
+    const snapCtx=snap.getContext('2d',{alpha:false});
+    snapCtx.imageSmoothingEnabled = true;
+    snapCtx.imageSmoothingQuality = 'high';
+    snapCtx.drawImage(work,0,0);
+    frames.push(snap);
+    setVideoProgress(
+      5+25*(i+1)/totalSourceFrames,
+      currentLang==='ko'
+        ? `4개 촬영 영상을 프레임에 합성 중… ${i+1}/${totalSourceFrames}`
+        : `Đang ghép 4 đoạn chuyển động vào khung… ${i+1}/${totalSourceFrames}`
+    );
+    if (i%4===0) await waitMs(0);
+  }
+  return frames;
+}
+
+function bytes(...arrays){
+  const flat=arrays.flatMap(a=>Array.from(a instanceof Uint8Array?a:new Uint8Array(a)));
+  return new Uint8Array(flat);
+}
+function u8(n){return new Uint8Array([n&255]);}
+function u16(n){return new Uint8Array([(n>>>8)&255,n&255]);}
+function u24(n){return new Uint8Array([(n>>>16)&255,(n>>>8)&255,n&255]);}
+function u32(n){return new Uint8Array([(n>>>24)&255,(n>>>16)&255,(n>>>8)&255,n&255]);}
+function fourcc(s){return new Uint8Array([...s].map(c=>c.charCodeAt(0)));}
+function mp4Box(type,...payloads){
+  const payload=bytes(...payloads); return bytes(u32(payload.length+8),fourcc(type),payload);
+}
+function fullBox(type,version,flags,...payloads){return mp4Box(type,u8(version),u24(flags),...payloads);}
+function zeros(n){return new Uint8Array(n);}
+function fixed1616(n){return u32(Math.round(n*65536));}
+function matrixIdentity(){return bytes(u32(0x00010000),u32(0),u32(0),u32(0),u32(0x00010000),u32(0),u32(0),u32(0),u32(0x40000000));}
+
+function makeFtyp(){return mp4Box('ftyp',fourcc('isom'),u32(0x200),fourcc('isom'),fourcc('iso2'),fourcc('avc1'),fourcc('mp41'));}
+function makeMvhd(durationMs){
+  return fullBox('mvhd',0,0,u32(0),u32(0),u32(1000),u32(durationMs),u32(0x00010000),u16(0x0100),u16(0),zeros(8),matrixIdentity(),zeros(24),u32(2));
+}
+function makeTkhd(width,height,durationMs){
+  return fullBox('tkhd',0,7,u32(0),u32(0),u32(1),u32(0),u32(durationMs),zeros(8),u16(0),u16(0),u16(0),u16(0),matrixIdentity(),fixed1616(width),fixed1616(height));
+}
+function makeMdhd(timescale,duration){
+  return fullBox('mdhd',0,0,u32(0),u32(0),u32(timescale),u32(duration),u16(0x55c4),u16(0));
+}
+function makeHdlr(){
+  const name=new TextEncoder().encode('VideoHandler\0');
+  return fullBox('hdlr',0,0,u32(0),fourcc('vide'),zeros(12),name);
+}
+function makeVmhd(){return fullBox('vmhd',0,1,u16(0),u16(0),u16(0),u16(0));}
+function makeDinf(){
+  const url=fullBox('url ',0,1);
+  const dref=fullBox('dref',0,0,u32(1),url);
+  return mp4Box('dinf',dref);
+}
+function makeAvc1(width,height,avcC){
+  const compressor=zeros(32);
+  const fixed=bytes(zeros(6),u16(1),u16(0),u16(0),zeros(12),u16(width),u16(height),u32(0x00480000),u32(0x00480000),u32(0),u16(1),compressor,u16(0x0018),u16(0xffff));
+  return mp4Box('avc1',fixed,mp4Box('avcC',avcC));
+}
+function makeStbl(width,height,avcC,samples,timescale,sampleDelta,chunkOffset){
+  const stsd=fullBox('stsd',0,0,u32(1),makeAvc1(width,height,avcC));
+  const stts=fullBox('stts',0,0,u32(1),u32(samples.length),u32(sampleDelta));
+  const stsc=fullBox('stsc',0,0,u32(1),u32(1),u32(samples.length),u32(1));
+  const sizeFields=samples.map(s=>u32(s.data.length));
+  const stsz=fullBox('stsz',0,0,u32(0),u32(samples.length),...sizeFields);
+  const stco=fullBox('stco',0,0,u32(1),u32(chunkOffset));
+  const sync=samples.map((s,i)=>s.key?i+1:0).filter(Boolean);
+  const stss=fullBox('stss',0,0,u32(sync.length),...sync.map(i=>u32(i)));
+  return mp4Box('stbl',stsd,stts,stsc,stsz,stco,stss);
+}
+function makeMoov(width,height,avcC,samples,timescale,sampleDelta,chunkOffset){
+  const mediaDuration=samples.length*sampleDelta;
+  const durationMs=Math.round(mediaDuration*1000/timescale);
+  const stbl=makeStbl(width,height,avcC,samples,timescale,sampleDelta,chunkOffset);
+  const minf=mp4Box('minf',makeVmhd(),makeDinf(),stbl);
+  const mdia=mp4Box('mdia',makeMdhd(timescale,mediaDuration),makeHdlr(),minf);
+  const trak=mp4Box('trak',makeTkhd(width,height,durationMs),mdia);
+  return mp4Box('moov',makeMvhd(durationMs),trak);
+}
+function muxAvcToMp4(width,height,avcC,samples){
+  const timescale=90000, sampleDelta=timescale/VIDEO_FPS;
+  const ftyp=makeFtyp();
+  let moov=makeMoov(width,height,avcC,samples,timescale,sampleDelta,0);
+  const firstSampleOffset=ftyp.length+moov.length+8;
+  moov=makeMoov(width,height,avcC,samples,timescale,sampleDelta,firstSampleOffset);
+  const mdat=mp4Box('mdat',...samples.map(s=>s.data));
+  return new Blob([ftyp,moov,mdat],{type:'video/mp4'});
+}
+
+async function findSupportedAvcConfig(width,height,bitrate){
+  if (!('VideoEncoder' in window) || !VideoEncoder.isConfigSupported) return null;
+  const codecs=['avc1.64002A','avc1.640029','avc1.4D402A','avc1.4D4029','avc1.42E02A','avc1.42E029','avc1.640028','avc1.4D4028','avc1.42E028'];
+  for (const codec of codecs){
+    const config={codec,width,height,bitrate,framerate:VIDEO_FPS,latencyMode:'quality',hardwareAcceleration:'no-preference',avc:{format:'avc'}};
+    try{
+      const info=await VideoEncoder.isConfigSupported(config);
+      if (info.supported) return {...config,...info.config,avc:{format:'avc'}};
+    }catch(e){}
+  }
+  return null;
+}
+
+async function encodeMp4WebCodecs(sourceFrames,w,h,bitrate){
+  const config=await findSupportedAvcConfig(w,h,bitrate);
+  if (!config) throw new Error('NO_WEBCODECS_H264');
+  const samples=[]; let avcC=null; let outputCodec=config.codec;
+  let encoderError=null;
+  const encoder=new VideoEncoder({
+    output:(chunk,meta)=>{
+      const data=new Uint8Array(chunk.byteLength); chunk.copyTo(data);
+      samples.push({timestamp:chunk.timestamp,duration:chunk.duration||Math.round(1e6/VIDEO_FPS),key:chunk.type==='key',data});
+      if (meta && meta.decoderConfig){
+        outputCodec=meta.decoderConfig.codec||outputCodec;
+        if (meta.decoderConfig.description) avcC=new Uint8Array(meta.decoderConfig.description).slice();
+      }
+    },
+    error:e=>{encoderError=e;}
+  });
+  encoder.configure(config);
+  const frameDur=Math.round(1e6/VIDEO_FPS);
+  const sourceFramesCount=getVideoSourceFrames();
+  const totalFrames=getVideoTotalFrames();
+  for (let i=0;i<totalFrames;i++){
+    while (encoder.encodeQueueSize>8) await waitMs(4);
+    const source=sourceFrames[i%sourceFramesCount];
+    const vf=new VideoFrame(source,{timestamp:i*frameDur,duration:frameDur});
+    const keyFrame=(i===0 || i===sourceFramesCount || i===sourceFramesCount*2);
+    encoder.encode(vf,{keyFrame}); vf.close();
+    if (i%4===0){
+      setVideoProgress(30+55*(i+1)/totalFrames,
+        currentLang==='ko' ? `H.264 MP4 인코딩 중… ${i+1}/${totalFrames}` : `Đang mã hoá H.264 → MP4… ${i+1}/${totalFrames}`);
+      await waitMs(0);
+    }
+  }
+  await encoder.flush(); encoder.close();
+  if (encoderError) throw encoderError;
+  samples.sort((a,b)=>a.timestamp-b.timestamp);
+  if (!avcC) throw new Error('NO_AVCC');
+  return {blob:muxAvcToMp4(w,h,avcC,samples),codec:outputCodec,samples,avcC};
+}
+
+function readU16(a,o){return (a[o]<<8)|a[o+1];}
+function readU32(a,o){return ((a[o]*0x1000000)+(a[o+1]<<16)+(a[o+2]<<8)+a[o+3])>>>0;}
+function typeAt(a,o){return String.fromCharCode(a[o],a[o+1],a[o+2],a[o+3]);}
+function listBoxes(a,start=0,end=a.length){
+  const out=[]; let p=start;
+  while (p+8<=end){
+    let size=readU32(a,p); const type=typeAt(a,p+4);
+    if (size===0) size=end-p;
+    if (size<8 || p+size>end) break;
+    out.push({type,start:p,size,dataStart:p+8,end:p+size}); p+=size;
+  }
+  return out;
+}
+function boxChild(a,parent,type){return listBoxes(a,parent.dataStart,parent.end).find(b=>b.type===type)||null;}
+function boxPath(a,types){
+  let boxes=listBoxes(a), cur=null;
+  for (const t of types){cur=(cur?listBoxes(a,cur.dataStart,cur.end):boxes).find(b=>b.type===t)||null;if(!cur)return null;}
+  return cur;
+}
+function scanBoxSignature(a,type,start=0,end=a.length){
+  const sig=[...type].map(c=>c.charCodeAt(0));
+  for(let i=start+4;i+4<=end;i++) if(a[i]===sig[0]&&a[i+1]===sig[1]&&a[i+2]===sig[2]&&a[i+3]===sig[3]){
+    const s=i-4,size=readU32(a,s); if(size>=8&&s+size<=end)return {type,start:s,size,dataStart:s+8,end:s+size};
+  }
+  return null;
+}
+function parseOurMp4(a){
+  const moov=listBoxes(a).find(b=>b.type==='moov');
+  const mdat=listBoxes(a).find(b=>b.type==='mdat');
+  if(!moov||!mdat) throw new Error('MP4_BOX_MISSING');
+  const trak=boxChild(a,moov,'trak'), mdia=boxChild(a,trak,'mdia'), minf=boxChild(a,mdia,'minf'), stbl=boxChild(a,minf,'stbl');
+  const mdhd=boxChild(a,mdia,'mdhd'), stts=boxChild(a,stbl,'stts'), stsz=boxChild(a,stbl,'stsz'), stco=boxChild(a,stbl,'stco'), stss=boxChild(a,stbl,'stss');
+  if(!mdhd||!stts||!stsz||!stco) throw new Error('MP4_TABLE_MISSING');
+  const timescale=readU32(a,mdhd.dataStart+12);
+  const sttsEntries=readU32(a,stts.dataStart+4); let totalSamples=0,totalTicks=0,firstDelta=0,p=stts.dataStart+8;
+  for(let i=0;i<sttsEntries;i++){const count=readU32(a,p),delta=readU32(a,p+4);if(i===0)firstDelta=delta;totalSamples+=count;totalTicks+=count*delta;p+=8;}
+  const sampleSize=readU32(a,stsz.dataStart+4), sampleCount=readU32(a,stsz.dataStart+8); p=stsz.dataStart+12;
+  const sizes=[]; for(let i=0;i<sampleCount;i++) sizes.push(sampleSize||readU32(a,p+i*4));
+  const chunkOffset=readU32(a,stco.dataStart+8);
+  const sync=[]; if(stss){const n=readU32(a,stss.dataStart+4);p=stss.dataStart+8;for(let i=0;i<n;i++)sync.push(readU32(a,p+i*4));}
+  const avcCBox=scanBoxSignature(a,'avcC',moov.start,moov.end); if(!avcCBox)throw new Error('NO_AVCC_IN_MP4');
+  const avcC=a.slice(avcCBox.dataStart,avcCBox.end);
+  const avc1=scanBoxSignature(a,'avc1',moov.start,moov.end);
+  const width=avc1?readU16(a,avc1.dataStart+24):0, height=avc1?readU16(a,avc1.dataStart+26):0;
+  const codec=`avc1.${[avcC[1],avcC[2],avcC[3]].map(x=>x.toString(16).padStart(2,'0')).join('').toUpperCase()}`;
+  const samples=[]; let off=chunkOffset; const syncSet=new Set(sync);
+  for(let i=0;i<sizes.length;i++){const size=sizes[i];samples.push({data:a.slice(off,off+size),key:syncSet.has(i+1),timestamp:Math.round(i*firstDelta*1e6/timescale),duration:Math.round(firstDelta*1e6/timescale)});off+=size;}
+  return {width,height,timescale,duration:totalTicks/timescale,frameCount:sampleCount,keyframes:sync.map(i=>(i-1)*firstDelta/timescale),codec,avcC,samples,totalSamples};
+}
+
+async function verifyGeneratedMp4(blob){
+  setVideoProgress(90,currentLang==='ko'?'생성된 MP4를 다시 분석하고 디코딩하는 중…':'Đang đọc lại MP4, kiểm tra bảng mẫu và giải mã…');
+  const a=new Uint8Array(await blob.arrayBuffer());
+  const info=parseOurMp4(a);
+  let decoded=0,decodeError=null;
+  if ('VideoDecoder' in window){
+    const decConfig={codec:info.codec,codedWidth:info.width,codedHeight:info.height,description:info.avcC};
+    try{
+      const support=VideoDecoder.isConfigSupported?await VideoDecoder.isConfigSupported(decConfig):{supported:true};
+      if (!support.supported) throw new Error('VIDEO_DECODER_UNSUPPORTED');
+      const decoder=new VideoDecoder({output:f=>{decoded++;f.close();},error:e=>{decodeError=e;}});
+      decoder.configure(decConfig);
+      for(let i=0;i<info.samples.length;i++){
+        while(decoder.decodeQueueSize>16) await waitMs(2);
+        const s=info.samples[i]; decoder.decode(new EncodedVideoChunk({type:s.key?'key':'delta',timestamp:s.timestamp,duration:s.duration,data:s.data}));
+        if(i%24===0)await waitMs(0);
+      }
+      await decoder.flush(); decoder.close();
+    }catch(e){decodeError=e;}
+  }else decodeError=new Error('NO_VIDEO_DECODER');
+  const loopSeconds=getVideoLoopSeconds();
+  const required=[0,loopSeconds,loopSeconds*2];
+  const keyOk=required.every(t=>info.keyframes.some(k=>Math.abs(k-t)<=1/VIDEO_FPS+.002));
+  return { ...info, decoded, decodeOk:!decodeError&&decoded===info.frameCount, decodeError, keyOk,
+    frameOk:info.frameCount===getVideoTotalFrames(), durationOk:Math.abs(info.duration-getVideoTotalSeconds())<0.02 };
+}
+
+function isIOSWebKit(){
+  const ua=navigator.userAgent||'';
+  const platform=navigator.platform||'';
+  return /iPad|iPhone|iPod/i.test(ua) || (platform==='MacIntel' && navigator.maxTouchPoints>1);
+}
+
+function recorderMp4Candidates(){
+  // Safari các đời khác nhau chấp nhận chuỗi codec hơi khác nhau.
+  // Không chỉ tin isTypeSupported(): một số bản WebKit cũ báo chưa chính xác.
+  const all=[
+    'video/mp4;codecs="avc1.42E01E"',
+    'video/mp4;codecs=avc1.42E01E',
+    'video/mp4;codecs="avc1.42001E"',
+    'video/mp4;codecs=avc1.42001E',
+    'video/mp4;codecs="avc1.4D401F"',
+    'video/mp4;codecs=avc1.4D401F',
+    'video/mp4;codecs=avc1',
+    'video/mp4;codecs=h264',
+    'video/mp4'
+  ];
+  const supported=[];
+  const unknown=[];
+  for(const t of all){
+    try{
+      if(MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) supported.push(t);
+      else unknown.push(t);
+    }catch(e){ unknown.push(t); }
+  }
+  // Ưu tiên loại trình duyệt tự báo hỗ trợ, sau đó vẫn thử các chuỗi còn lại.
+  return [...new Set([...supported,...unknown])];
+}
+
+function createMp4MediaRecorder(stream, bitrate, keyIntervalMs){
+  if(!('MediaRecorder' in window)) throw new Error('NO_MEDIARECORDER');
+
+  const candidates=recorderMp4Candidates();
+  let lastError=null;
+
+  for(const mime of candidates){
+    const optionSets=[
+      {mimeType:mime,videoBitsPerSecond:bitrate,videoKeyFrameIntervalDuration:keyIntervalMs},
+      {mimeType:mime,videoBitsPerSecond:bitrate},
+      {mimeType:mime}
+    ];
+    for(const options of optionSets){
+      try{
+        const rec=new MediaRecorder(stream,options);
+        return {rec,mime:rec.mimeType||mime};
+      }catch(e){ lastError=e; }
+    }
+  }
+
+  // Safari cũ đôi khi chỉ hoạt động khi để trình duyệt tự chọn định dạng.
+  try{
+    const rec=new MediaRecorder(stream,{videoBitsPerSecond:bitrate});
+    return {rec,mime:rec.mimeType||'video/mp4'};
+  }catch(e){ lastError=e; }
+
+  try{
+    const rec=new MediaRecorder(stream);
+    return {rec,mime:rec.mimeType||'video/mp4'};
+  }catch(e){ lastError=e; }
+
+  throw lastError||new Error('NO_MP4_FALLBACK');
+}
+
+function makeRecorderCanvas(width,height){
+  const c=document.createElement('canvas');
+  c.width=width;
+  c.height=height;
+
+  // Quan trọng với Safari/iOS cũ: canvas capture đáng tin cậy hơn khi canvas
+  // thực sự nằm trong DOM. Không dùng display:none vì WebKit có thể ngừng cập nhật.
+  c.setAttribute('aria-hidden','true');
+  Object.assign(c.style,{
+    position:'fixed',
+    left:'-4px',
+    bottom:'-4px',
+    width:'2px',
+    height:'2px',
+    opacity:'0.001',
+    pointerEvents:'none',
+    zIndex:'-1'
+  });
+  document.body.appendChild(c);
+  return c;
+}
+
+async function encodeFallbackMediaRecorder(sourceFrames,w,h,forceMobileSize=false){
+  if(!('MediaRecorder' in window)) throw new Error('NO_MEDIARECORDER');
+  if(!HTMLCanvasElement.prototype.captureStream) throw new Error('NO_CANVAS_CAPTURESTREAM');
+
+  // iPhone/iPad cũ dễ lỗi khi mã hoá canvas 1024x1536 ở bitrate quá cao.
+  // 720x1080 vẫn rất nét nhưng tương thích phần cứng H.264 tốt hơn.
+  let outW=w, outH=h;
+  if(isIOSWebKit()){
+    // Lần đầu: 720×1080 để vẫn nét trên điện thoại.
+    // Nếu Safari vẫn lỗi, lần retry hạ xuống 576×864 để tăng tương thích encoder.
+    outW=Math.min(w,forceMobileSize ? 576 : 720);
+    outH=evenNumber(outW * h / w);
+  }else if(forceMobileSize){
+    outW=Math.min(w,720);
+    outH=evenNumber(outW * h / w);
+  }
+
+  const c=makeRecorderCanvas(outW,outH);
+  const cx=c.getContext('2d',{alpha:false,desynchronized:false});
+  cx.imageSmoothingEnabled=true;
+  cx.imageSmoothingQuality='high';
+
+  let mediaStream=null;
+  let recorder=null;
+  let track=null;
+
+  try{
+    // Vẽ frame đầu trước khi captureStream để Safari không khởi tạo track rỗng/đen.
+    cx.fillStyle='#fff';
+    cx.fillRect(0,0,outW,outH);
+    cx.drawImage(sourceFrames[0],0,0,outW,outH);
+
+    mediaStream=c.captureStream(VIDEO_FPS);
+    if(!mediaStream || !mediaStream.getVideoTracks || !mediaStream.getVideoTracks().length){
+      throw new Error('CANVAS_STREAM_EMPTY');
+    }
+    track=mediaStream.getVideoTracks()[0];
+
+    const bitrate=isIOSWebKit()?8000000:12000000;
+    const made=createMp4MediaRecorder(mediaStream,bitrate,getVideoLoopSeconds()*1000);
+    recorder=made.rec;
+
+    const chunks=[];
+    recorder.ondataavailable=e=>{
+      if(e.data && e.data.size>0) chunks.push(e.data);
+    };
+
+    let recordError=null;
+    const stopped=new Promise((resolve,reject)=>{
+      recorder.onstop=resolve;
+      recorder.onerror=e=>{
+        recordError=e.error||e;
+        reject(recordError);
+      };
+    });
+
+    // timeslice giúp Safari xả dữ liệu dần, tránh dồn một blob lớn trong RAM.
+    try{ recorder.start(1000); }
+    catch(e){ recorder.start(); }
+
+    // Cho bộ mã hoá Safari có thời gian khởi động.
+    await waitMs(120);
+
+    const totalFrames=getVideoTotalFrames();
+    const sourceFramesCount=getVideoSourceFrames();
+    const start=performance.now();
+
+    for(let i=0;i<totalFrames;i++){
+      const target=start+i*(1000/VIDEO_FPS);
+      while(performance.now()<target) await nextPaint();
+
+      const source=sourceFrames[i%sourceFramesCount];
+      cx.drawImage(source,0,0,outW,outH);
+
+      // Một số bản Safari có requestFrame(); gọi thêm để buộc canvas track nhận frame mới.
+      if(track && typeof track.requestFrame==='function'){
+        try{ track.requestFrame(); }catch(e){}
+      }
+
+      setVideoProgress(
+        30+60*(i+1)/totalFrames,
+        currentLang==='ko'
+          ? `iPhone/iPad 호환 MP4 기록 중… ${i+1}/${totalFrames}`
+          : `Đang ghi MP4 tương thích điện thoại… ${i+1}/${totalFrames}`
+      );
+    }
+
+    await waitMs(Math.max(80,1000/VIDEO_FPS*2));
+
+    if(recorder.state!=='inactive') recorder.stop();
+    await stopped;
+
+    if(recordError) throw recordError;
+    if(!chunks.length) throw new Error('EMPTY_MP4');
+
+    const actualType=recorder.mimeType || chunks[0].type || made.mime || 'video/mp4';
+    const blob=new Blob(chunks,{type:actualType});
+
+    if(blob.size<1024) throw new Error('EMPTY_MP4');
+
+    // Yêu cầu vẫn là MP4. Không âm thầm đổi sang WebM.
+    if(actualType && !/mp4|quicktime/i.test(actualType)){
+      throw new Error('RECORDER_NOT_MP4');
+    }
+
+    return {
+      blob,
+      codec:'MediaRecorder Safari/iOS fallback',
+      mime:actualType||'video/mp4',
+      width:outW,
+      height:outH
+    };
+  }finally{
+    try{
+      if(recorder && recorder.state!=='inactive') recorder.stop();
+    }catch(e){}
+    try{
+      if(mediaStream) mediaStream.getTracks().forEach(t=>t.stop());
+    }catch(e){}
+    c.remove();
+  }
+}
+
+function downloadMp4(blob){
+  const ts=new Date(),pad=n=>String(n).padStart(2,'0');
+  const name=`photobooth_motion_frame_${ts.getFullYear()}${pad(ts.getMonth()+1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.mp4`;
+  const url=URL.createObjectURL(blob),a=document.createElement('a'); a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);
+}
+
+btnSaveVideo.addEventListener('click',async()=>{
+  if(videoExportBusy || capturing)return;
+  if (photos.filter(Boolean).length < 4){
+    setVideoProgress(0,currentLang==='ko'?'MP4를 저장하려면 사진 4장이 필요합니다.':'Cần đủ 4 ảnh để lưu MP4 khung động.','error');
+    return;
+  }
+  const {width:w,height:h}=exportSize(); let frames=null;
+  setVideoExportLock(true);
+  try{
+    setVideoProgress(2,currentLang==='ko'?`움직이는 프레임 준비 중… ${w}×${h} · ${getVideoTotalSeconds()}초`:`Đang chuẩn bị khung chuyển động… ${w}×${h} · ${getVideoTotalSeconds()} giây`);
+    await nextPaint();
+    frames=await buildThreeSecondFrameLoop(w,h);
+
+    let result=null,verification=null,method='WebCodecs';
+    if('VideoEncoder' in window){
+      let lastErr=null;
+      for(const bitrate of [12000000,9000000,6000000]){
+        try{
+          result=await encodeMp4WebCodecs(frames,w,h,bitrate);
+          if(result) break;
+        }catch(e){
+          lastErr=e;
+          result=null;
+        }
+      }
+      if(!result && lastErr && String(lastErr.message)!=='NO_WEBCODECS_H264') throw lastErr;
+    }
+    if(!result){
+      method='MediaRecorder fallback';
+      setVideoProgress(
+        30,
+        currentLang==='ko' ? I18N.ko.videoMobileFallback : I18N.vi.videoMobileFallback
+      );
+      try{
+        result=await encodeFallbackMediaRecorder(frames,w,h,false);
+      }catch(firstMobileError){
+        console.warn('MP4 fallback first attempt failed:',firstMobileError);
+        setVideoProgress(
+          32,
+          currentLang==='ko' ? I18N.ko.videoMobileRetry : I18N.vi.videoMobileRetry
+        );
+        // Lần 2 ép kích thước thân thiện hơn với bộ mã hoá H.264 của iPhone/iPad cũ.
+        result=await encodeFallbackMediaRecorder(frames,w,h,true);
+      }
+    }
+    // Không giới hạn dung lượng ở WebCodecs; fallback iOS ưu tiên tương thích phần cứng.
+
+    if(method==='WebCodecs') verification=await verifyGeneratedMp4(result.blob);
+    downloadMp4(result.blob);
+
+    const savedW=result.width||w;
+    const savedH=result.height||h;
+
+    if(verification){
+      const keys=verification.keyframes.map(t=>`${t.toFixed(2)}s`).join(', ');
+      const movingCount=motionClips.filter(c=>c&&c.length).length;
+      const ok=verification.frameOk&&verification.durationOk&&verification.keyOk&&verification.decodeOk;
+      const msg=currentLang==='ko'
+        ? `${ok?'✅':'⚠️'} 저장 형식: 움직이는 프레임 MP4 / H.264 (${result.codec})\n${w}×${h} · 고화질 · ${verification.duration.toFixed(2)}초 (타이머 ${getMotionClipSeconds()}초 → 총 ${getVideoTotalSeconds()}초) · ${verification.frameCount}프레임 · ${formatBytes(result.blob.size)}\n움직이는 칸: ${movingCount}/4${movingCount<4?' (업로드 사진은 정지)':''}\n키프레임: ${keys}\n재디코딩: ${verification.decoded}/${verification.frameCount}프레임 · ${ok?'검증 통과':'검증 확인 필요'}`
+        : `${ok?'✅':'⚠️'} Đã lưu: MP4 khung động / H.264 (${result.codec})\n${w}×${h} · chất lượng cao · ${verification.duration.toFixed(2)} giây (hẹn giờ ${getMotionClipSeconds()} giây → tổng ${getVideoTotalSeconds()} giây) · ${verification.frameCount} khung · ${formatBytes(result.blob.size)}\nÔ chuyển động: ${movingCount}/4${movingCount<4?' (ảnh tải lên sẽ đứng hình)':''}\nKeyframe: ${keys}\nGiải mã lại: ${verification.decoded}/${verification.frameCount} khung · ${ok?'KIỂM TRA ĐẠT':'CẦN KIỂM TRA LẠI'}`;
+      setVideoProgress(100,msg,ok?'success':'');
+    }else{
+      const msg=currentLang==='ko'
+        ? `✅ 저장 형식: 움직이는 프레임 MP4 (${result.mime||'video/mp4'}) · MediaRecorder 대체 방식\n${w}×${h} · 고화질 · 약 ${getVideoTotalSeconds()}초 (타이머 ${getMotionClipSeconds()}초 기준) · ${formatBytes(result.blob.size)}\n브라우저 대체 녹화는 WebCodecs 샘플/키프레임 테이블 재디코딩 검사를 제공하지 않습니다.`
+        : `✅ Đã lưu: MP4 khung động (${result.mime||'video/mp4'}) · phương án MediaRecorder dự phòng\n${w}×${h} · chất lượng cao · khoảng ${getVideoTotalSeconds()} giây (theo hẹn giờ ${getMotionClipSeconds()} giây) · ${formatBytes(result.blob.size)}\nỞ chế độ dự phòng, trình duyệt không cung cấp bảng mẫu/keyframe để kiểm tra giải mã chi tiết như đường WebCodecs.`;
+      setVideoProgress(100,msg,'success');
+    }
+  }catch(e){
+    console.error(e);
+    const code=String(e&&e.message||e||'');
+    let reason=currentLang==='ko'
+      ? `MP4 생성에 실패했습니다 (${code||'알 수 없는 오류'}). Safari/iOS 호환 경로까지 시도했습니다.`
+      : `Không tạo được MP4 (${code||'lỗi không xác định'}). Trang đã thử cả đường tương thích Safari/iPhone.`;
+
+    if(code==='NO_MEDIARECORDER'){
+      reason=currentLang==='ko'
+        ? '이 Safari 버전에는 MediaRecorder가 없습니다. Safari/iOS를 업데이트해야 MP4를 브라우저에서 직접 저장할 수 있습니다.'
+        : 'Phiên bản Safari này không có MediaRecorder. Cần cập nhật Safari/iOS để xuất MP4 trực tiếp trong trình duyệt.';
+    }else if(code==='NO_CANVAS_CAPTURESTREAM' || code==='CANVAS_STREAM_EMPTY'){
+      reason=currentLang==='ko'
+        ? '이 Safari 버전에서는 Canvas 영상 스트림을 녹화할 수 없습니다.'
+        : 'Phiên bản Safari này không ghi được luồng video từ canvas.';
+    }else if(code==='RECORDER_NOT_MP4'){
+      reason=currentLang==='ko'
+        ? '브라우저가 MP4 대신 다른 형식을 반환했습니다. 요구사항에 따라 WebM으로 저장하지 않았습니다.'
+        : 'Trình duyệt trả về định dạng khác MP4. Theo yêu cầu, trang không tự đổi sang WebM.';
+    }else if(code==='EMPTY_MP4'){
+      reason=currentLang==='ko'
+        ? 'Safari가 빈 MP4를 반환했습니다. 다시 시도해 주세요.'
+        : 'Safari trả về tệp MP4 rỗng. Hãy thử lưu lại một lần nữa.';
+    }
+
+    setVideoProgress(0,`❌ ${reason}`,'error');
+  }finally{
+    setVideoExportLock(false);
+  }
+});
+
 /* ============ Save / Retake ============ */
 btnSave.addEventListener('click', ()=>{
   if (photos.filter(Boolean).length < 4) return;
@@ -1172,6 +2472,7 @@ btnRetake.addEventListener('click', ()=>{
   gestureSessionActive = false;
   gestureRequireRelease = false;
   photos = [null,null,null,null];
+  motionClips = [null,null,null,null];
   slotsEls.forEach((_,i)=>renderSlot(i));
   renderFinal();
   stopCamera();
@@ -1182,6 +2483,7 @@ slotsEls.forEach((_,i)=>renderSlot(i));
 applyLiveFilter();
 applyI18n();
 window.addEventListener('beforeunload', ()=>{
+  stopMotionBuffer();
   if (stream) stream.getTracks().forEach(t=>t.stop());
 });
 </script>

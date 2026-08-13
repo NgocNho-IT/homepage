@@ -9,7 +9,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <!-- Hand-gesture detection (peace sign ✌️ auto-shutter). Loaded from CDN, runs fully on-device. -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 <style>
   :root{
     --blue-900:#0b2f6b;
@@ -162,7 +161,9 @@
   }
   .stage video{
     width:100%; height:100%; object-fit:cover;
-    transform:scaleX(-1);
+    transform:translateZ(0) scaleX(-1);
+    -webkit-transform:translateZ(0) scaleX(-1);
+    will-change:transform;
     display:block;
   }
   .stage.off video{display:none;}
@@ -841,6 +842,20 @@
 
   #mobileMp4SaveButton[hidden]{display:none!important;}
   #mobileMp4SaveButton{margin-bottom:4px;}
+
+  /* iOS Safari: backdrop-filter on sticky/fixed layers causes scroll jank. */
+  @supports (-webkit-touch-callout:none){
+    header.top{
+      -webkit-backdrop-filter:none!important;
+      backdrop-filter:none!important;
+      background:rgba(255,255,255,.98)!important;
+    }
+    .countdown-overlay{
+      -webkit-backdrop-filter:none!important;
+      backdrop-filter:none!important;
+    }
+  }
+
 </style>
 </head>
 <body>
@@ -1231,23 +1246,22 @@ const IS_IOS_MOBILE =
 const IS_ANDROID_MOBILE = /Android/i.test(navigator.userAgent || '');
 const IS_MOBILE_DEVICE = IS_IOS_MOBILE || IS_ANDROID_MOBILE;
 
-// Chế độ ưu tiên chất lượng:
-// - 30 FPS trên Windows, iOS và Android.
-// - Nguồn chuyển động lớn hơn để các ô video không bị mờ khi phóng lên.
-// Bộ dựng video chỉ dùng một canvas lớn tại một thời điểm nên vẫn tránh lỗi
-// tràn bộ nhớ canvas từng xuất hiện trên Safari.
-const MOTION_CLIP_FPS = 30;
+// Xuất video vẫn giữ 30 FPS.
+// Riêng iOS thu nguồn chuyển động ở 20 FPS rồi nội suy thời gian lên 30 FPS.
+// Cách này giảm khoảng 1/3 số frame giữ trong RAM nhưng vẫn mượt hơn bản 15 FPS.
+const MOTION_CAPTURE_FPS = IS_IOS_MOBILE ? 20 : 30;
 const MAX_MOTION_CLIP_SECONDS = 10;
-const MAX_MOTION_CLIP_FRAMES = MOTION_CLIP_FPS * MAX_MOTION_CLIP_SECONDS;
-const MOTION_BUFFER_W = IS_IOS_MOBILE ? 240 : (IS_ANDROID_MOBILE ? 320 : 512);
-const MOTION_BUFFER_H = IS_IOS_MOBILE ? 180 : (IS_ANDROID_MOBILE ? 240 : 384);
+const MAX_MOTION_CLIP_FRAMES = MOTION_CAPTURE_FPS * MAX_MOTION_CLIP_SECONDS;
+const MOTION_BUFFER_W = IS_IOS_MOBILE ? 160 : (IS_ANDROID_MOBILE ? 320 : 512);
+const MOTION_BUFFER_H = IS_IOS_MOBILE ? 120 : (IS_ANDROID_MOBILE ? 240 : 384);
+const MOTION_SHEET_COLS = 20;
 
 function getMotionClipSeconds(){
   const sec = Number(captureDelay) || 5;
   return sec <= 3 ? 3 : (sec >= 10 ? 10 : 5);
 }
 function getMotionClipFrames(){
-  return MOTION_CLIP_FPS * getMotionClipSeconds();
+  return MOTION_CAPTURE_FPS * getMotionClipSeconds();
 }
 function getVideoLoopSeconds(){
   return getMotionClipSeconds();
@@ -1256,15 +1270,18 @@ function getVideoTotalSeconds(){
   return getVideoLoopSeconds() * 3;
 }
 function getVideoSourceFrames(){
-  return getMotionClipFrames();
+  return VIDEO_FPS * getMotionClipSeconds();
 }
 function getVideoTotalFrames(){
   return VIDEO_FPS * getVideoTotalSeconds();
 }
 let motionBuffer = [];
+let motionBufferWriteIndex = 0;
+let motionBufferCount = 0;
 let motionClips = [null,null,null,null];
 let motionBufferRaf = null;
 let motionBufferLastTs = 0;
+let stageInViewport = true;
 
 const FILTERS = {
   original:'none',
@@ -1294,6 +1311,11 @@ timerPills.forEach(btn=>{
     if (capturing || videoExportBusy) return;
     captureDelay = Number(btn.dataset.delay) || 5;
     timerPills.forEach(b=>b.classList.toggle('active', b===btn));
+    pauseMotionBuffer();
+    motionBuffer.forEach(releaseCanvas);
+    motionBuffer=[];
+    motionBufferWriteIndex=0;
+    motionBufferCount=0;
     if (!videoExportStatus.classList.contains('success') && !videoExportStatus.classList.contains('error')){
       applyI18n();
     }
@@ -1325,62 +1347,238 @@ function drawRawCameraCoverMirrored(ctx, videoEl, w, h){
   ctx.restore();
 }
 
-function motionBufferLoop(ts){
-  if (!camOn || video.readyState < 2){
-    motionBufferRaf = null;
-    return;
+function releaseCanvas(canvas){
+  if(canvas && canvas.width){
+    canvas.width=1;
+    canvas.height=1;
   }
-  const interval = 1000 / MOTION_CLIP_FPS;
-  if (!motionBufferLastTs || ts - motionBufferLastTs >= interval - 2){
-    motionBufferLastTs = ts;
+}
+
+function releaseMotionClip(clip){
+  if(!clip) return;
+  if(clip.type==='sheet'){
+    releaseCanvas(clip.canvas);
+  }else if(Array.isArray(clip)){
+    clip.forEach(releaseCanvas);
+  }
+}
+
+function ensureMotionBufferPool(){
+  const needed=getMotionClipFrames();
+  if(
+    motionBuffer.length===needed &&
+    motionBuffer.every(c=>c && c.width===MOTION_BUFFER_W && c.height===MOTION_BUFFER_H)
+  ){
+    return true;
+  }
+
+  motionBuffer.forEach(releaseCanvas);
+  motionBuffer=[];
+  motionBufferWriteIndex=0;
+  motionBufferCount=0;
+
+  for(let i=0;i<needed;i++){
     const c=document.createElement('canvas');
     c.width=MOTION_BUFFER_W;
     c.height=MOTION_BUFFER_H;
     const cx=c.getContext('2d',{alpha:false});
+    if(!cx){
+      motionBuffer.forEach(releaseCanvas);
+      motionBuffer=[];
+      return false;
+    }
+    motionBuffer.push(c);
+  }
+  return true;
+}
+
+let motionBufferScheduler='raf';
+
+function cancelMotionSchedule(){
+  if(motionBufferRaf===null) return;
+  try{
+    if(
+      motionBufferScheduler==='video' &&
+      typeof video.cancelVideoFrameCallback==='function'
+    ){
+      video.cancelVideoFrameCallback(motionBufferRaf);
+    }else{
+      cancelAnimationFrame(motionBufferRaf);
+    }
+  }catch(e){}
+  motionBufferRaf=null;
+}
+
+function scheduleMotionBuffer(){
+  if(
+    typeof video.requestVideoFrameCallback==='function' &&
+    video.readyState>=2
+  ){
+    motionBufferScheduler='video';
+    motionBufferRaf=video.requestVideoFrameCallback((now)=>motionBufferLoop(now));
+  }else{
+    motionBufferScheduler='raf';
+    motionBufferRaf=requestAnimationFrame(motionBufferLoop);
+  }
+}
+
+function pauseMotionBuffer(){
+  cancelMotionSchedule();
+  motionBufferLastTs=0;
+}
+
+function motionBufferLoop(ts){
+  if(!camOn || !capturing || !stageInViewport || document.hidden || video.readyState<2){
+    motionBufferRaf=null;
+    return;
+  }
+
+  if(!motionBuffer.length && !ensureMotionBufferPool()){
+    motionBufferRaf=null;
+    return;
+  }
+
+  const interval=1000/MOTION_CAPTURE_FPS;
+  if(!motionBufferLastTs || ts-motionBufferLastTs>=interval-2){
+    motionBufferLastTs=ts;
+
+    const c=motionBuffer[motionBufferWriteIndex];
+    const cx=c && c.getContext('2d',{alpha:false});
+
     if(cx){
       drawRawCameraCoverMirrored(cx,video,c.width,c.height);
-      motionBuffer.push(c);
-      if(motionBuffer.length>getMotionClipFrames()) motionBuffer.shift();
-    }else{
-      // Safari có thể từ chối tạm thời khi bộ nhớ canvas đang cao.
-      // Bỏ qua frame này thay vì làm hỏng toàn bộ trang.
-      c.width=1;
-      c.height=1;
+      motionBufferWriteIndex=(motionBufferWriteIndex+1)%motionBuffer.length;
+      motionBufferCount=Math.min(motionBufferCount+1,motionBuffer.length);
     }
   }
-  motionBufferRaf = requestAnimationFrame(motionBufferLoop);
+
+  scheduleMotionBuffer();
 }
 
 function startMotionBuffer(){
-  if (motionBufferRaf || !camOn) return;
-  motionBufferLastTs = 0;
-  motionBufferRaf = requestAnimationFrame(motionBufferLoop);
+  if(motionBufferRaf!==null || !camOn || !capturing || !stageInViewport || document.hidden) return;
+  if(!ensureMotionBufferPool()) return;
+  motionBufferLastTs=0;
+  scheduleMotionBuffer();
 }
-function stopMotionBuffer(){
-  if (motionBufferRaf){ cancelAnimationFrame(motionBufferRaf); motionBufferRaf = null; }
-  motionBufferLastTs = 0;
-  motionBuffer = [];
-}
-function snapshotMotionClip(){
-  if (!motionBuffer.length) return null;
-  const needed=getMotionClipFrames();
-  const frames=motionBuffer.slice(-needed);
-  while(frames.length<needed) frames.unshift(frames[0]);
 
-  // Các canvas đã được chuyển sang clip của ảnh hiện tại.
-  // Bắt đầu buffer mới cho ảnh tiếp theo để Safari có thể thu hồi RAM sớm.
+function stopMotionBuffer(){
+  pauseMotionBuffer();
+  motionBuffer.forEach(releaseCanvas);
   motionBuffer=[];
+  motionBufferWriteIndex=0;
+  motionBufferCount=0;
+}
+
+function ringFrameAt(relativeIndex){
+  if(!motionBuffer.length || !motionBufferCount) return null;
+  const available=Math.min(motionBufferCount,motionBuffer.length);
+  const oldest=motionBufferCount<motionBuffer.length ? 0 : motionBufferWriteIndex;
+  const safe=Math.max(0,Math.min(available-1,relativeIndex));
+  return motionBuffer[(oldest+safe)%motionBuffer.length];
+}
+
+function buildMobileSpriteClip(){
+  const needed=getMotionClipFrames();
+  const available=Math.max(1,Math.min(motionBufferCount,motionBuffer.length));
+  const cols=Math.min(MOTION_SHEET_COLS,needed);
+  const rows=Math.ceil(needed/cols);
+
+  const sheet=document.createElement('canvas');
+  sheet.width=cols*MOTION_BUFFER_W;
+  sheet.height=rows*MOTION_BUFFER_H;
+  const sx=sheet.getContext('2d',{alpha:false});
+  if(!sx){
+    releaseCanvas(sheet);
+    return null;
+  }
+  sx.imageSmoothingEnabled=false;
+
+  const missing=Math.max(0,needed-available);
+  for(let i=0;i<needed;i++){
+    const sourceIndex=i<missing ? 0 : i-missing;
+    const source=ringFrameAt(sourceIndex);
+    if(!source) continue;
+    const col=i%cols;
+    const row=Math.floor(i/cols);
+    sx.drawImage(
+      source,
+      0,0,MOTION_BUFFER_W,MOTION_BUFFER_H,
+      col*MOTION_BUFFER_W,row*MOTION_BUFFER_H,
+      MOTION_BUFFER_W,MOTION_BUFFER_H
+    );
+  }
+
+  return {
+    type:'sheet',
+    canvas:sheet,
+    frameW:MOTION_BUFFER_W,
+    frameH:MOTION_BUFFER_H,
+    cols,
+    length:needed,
+    captureFps:MOTION_CAPTURE_FPS
+  };
+}
+
+function buildDesktopArrayClip(){
+  const needed=getMotionClipFrames();
+  const available=Math.max(1,Math.min(motionBufferCount,motionBuffer.length));
+  const missing=Math.max(0,needed-available);
+  const frames=[];
+
+  for(let i=0;i<needed;i++){
+    const sourceIndex=i<missing ? 0 : i-missing;
+    const source=ringFrameAt(sourceIndex);
+    if(!source) continue;
+
+    const copy=document.createElement('canvas');
+    copy.width=MOTION_BUFFER_W;
+    copy.height=MOTION_BUFFER_H;
+    const cx=copy.getContext('2d',{alpha:false});
+    if(!cx){
+      releaseCanvas(copy);
+      continue;
+    }
+    cx.drawImage(source,0,0);
+    frames.push(copy);
+  }
+  return frames.length ? frames : null;
+}
+
+function snapshotMotionClip(){
+  if(!motionBufferCount) return null;
+
+  // Mobile stores a single sprite-sheet canvas instead of hundreds of canvases.
+  const clip=IS_MOBILE_DEVICE ? buildMobileSpriteClip() : buildDesktopArrayClip();
+
+  // Reuse the same ring-buffer canvases for the next shot.
+  motionBufferWriteIndex=0;
+  motionBufferCount=0;
   motionBufferLastTs=0;
 
-  return frames;
+  return clip;
 }
 
 /* ============ Camera ============ */
 async function startCamera(){
   camError.classList.add('hidden');
   try{
+    const cameraVideoConstraints = IS_IOS_MOBILE
+      ? {
+          facingMode:'user',
+          width:{ideal:1280,max:1280},
+          height:{ideal:960,max:960},
+          frameRate:{ideal:30,min:24,max:30}
+        }
+      : {
+          facingMode:'user',
+          width:{ideal:2560},
+          height:{ideal:1920},
+          frameRate:{ideal:30,max:60}
+        };
+
     stream = await navigator.mediaDevices.getUserMedia({
-      video:{ facingMode:'user', width:{ideal:2560}, height:{ideal:1920}, frameRate:{ideal:30,max:60} },
+      video:cameraVideoConstraints,
       audio:false
     });
     video.srcObject = stream;
@@ -1388,8 +1586,11 @@ async function startCamera(){
     camOn = true;
     stage.classList.remove('off');
     btnStartCapture.disabled = false;
-    startMotionBuffer();
-    startGestureLoop();
+    // Chỉ thu khung chuyển động trong lúc đếm ngược/chụp.
+    // Không chạy liên tục khi người dùng chỉ đang xem camera.
+    if(gestureToggle.checked){
+      ensureHandsModel().then(()=>startGestureLoop());
+    }
   }catch(err){
     camOn = false;
     camError.textContent = I18N[currentLang].camDenied;
@@ -1425,7 +1626,15 @@ let gestureBusy = false;
 let lastGestureSend = 0;
 let peaceHoldStart = null;
 const PEACE_HOLD_MS = 650;
-const GESTURE_SEND_INTERVAL_MS = 100;
+const GESTURE_SEND_INTERVAL_MS = IS_IOS_MOBILE ? 220 : 100;
+
+const GESTURE_INPUT_W = IS_IOS_MOBILE ? 192 : 320;
+const GESTURE_INPUT_H = Math.round(GESTURE_INPUT_W * 3 / 4);
+const gestureInputCanvas = document.createElement('canvas');
+gestureInputCanvas.width = GESTURE_INPUT_W;
+gestureInputCanvas.height = GESTURE_INPUT_H;
+const gestureInputCtx = gestureInputCanvas.getContext('2d',{alpha:false});
+
 
 function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
 function jointAngle(a,b,c){
@@ -1485,6 +1694,9 @@ async function captureOneByGesture(){
     btnStartCapture.disabled = false;
   }else{
     btnStartCapture.disabled = true;
+    if(gestureToggle.checked && stageInViewport && !document.hidden){
+      ensureHandsModel().then(()=>startGestureLoop());
+    }
   }
   applyI18n();
 }
@@ -1520,37 +1732,89 @@ function onHandsResults(results){
   }
 }
 
+let handsLibraryPromise=null;
+let handsModelPromise=null;
+
+function loadHandsLibrary(){
+  if(typeof Hands!=='undefined') return Promise.resolve(true);
+  if(handsLibraryPromise) return handsLibraryPromise;
+
+  handsLibraryPromise=new Promise((resolve)=>{
+    const script=document.createElement('script');
+    script.src='https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js';
+    script.crossOrigin='anonymous';
+    script.async=true;
+    script.onload=()=>resolve(typeof Hands!=='undefined');
+    script.onerror=()=>resolve(false);
+    document.head.appendChild(script);
+  });
+
+  return handsLibraryPromise;
+}
+
 async function initHandsModel(){
-  if (typeof Hands === 'undefined') return null; // offline / CDN unreachable: feature just stays hidden
+  const loaded=await loadHandsLibrary();
+  if(!loaded || typeof Hands==='undefined') return null;
+
   try{
-    const model = new Hands({ locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
-    model.setOptions({ maxNumHands:1, modelComplexity:1, minDetectionConfidence:0.45, minTrackingConfidence:0.45 });
+    const model=new Hands({
+      locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+    });
+    model.setOptions({
+      maxNumHands:1,
+      modelComplexity:IS_IOS_MOBILE ? 0 : 1,
+      minDetectionConfidence:0.45,
+      minTrackingConfidence:0.45
+    });
     model.onResults(onHandsResults);
-    gestureRow.hidden = false;
+    gestureRow.hidden=false;
     return model;
   }catch(e){
     return null;
   }
 }
 
+async function ensureHandsModel(){
+  if(handsModel) return handsModel;
+  if(!handsModelPromise){
+    handsModelPromise=initHandsModel().then(model=>{
+      handsModel=model;
+      return model;
+    });
+  }
+  return handsModelPromise;
+}
+
 function gestureLoop(ts){
-  if (!camOn || !gestureToggle.checked || !handsModel){
-    gestureRaf = null;
+  if(!camOn || !gestureToggle.checked || !handsModel || !stageInViewport || document.hidden){
+    gestureRaf=null;
     return;
   }
   if (!gestureBusy && video.readyState >= 2 && ts-lastGestureSend >= GESTURE_SEND_INTERVAL_MS){
     gestureBusy = true;
     lastGestureSend = ts;
-    handsModel.send({image:video})
+
+    let gestureSource=video;
+    if(gestureInputCtx){
+      gestureInputCtx.save();
+      gestureInputCtx.clearRect(0,0,GESTURE_INPUT_W,GESTURE_INPUT_H);
+      gestureInputCtx.translate(GESTURE_INPUT_W,0);
+      gestureInputCtx.scale(-1,1);
+      gestureInputCtx.drawImage(video,0,0,GESTURE_INPUT_W,GESTURE_INPUT_H);
+      gestureInputCtx.restore();
+      gestureSource=gestureInputCanvas;
+    }
+
+    handsModel.send({image:gestureSource})
       .catch(()=>{})
       .finally(()=>{ gestureBusy = false; });
   }
   gestureRaf = requestAnimationFrame(gestureLoop);
 }
 function startGestureLoop(){
-  if (!handsModel || gestureRaf || !camOn || !gestureToggle.checked) return;
-  lastGestureSend = 0;
-  gestureRaf = requestAnimationFrame(gestureLoop);
+  if(!handsModel || gestureRaf || !camOn || !gestureToggle.checked || !stageInViewport || document.hidden) return;
+  lastGestureSend=0;
+  gestureRaf=requestAnimationFrame(gestureLoop);
 }
 function stopGestureLoop(){
   if (gestureRaf){ cancelAnimationFrame(gestureRaf); gestureRaf = null; }
@@ -1569,11 +1833,46 @@ gestureToggle.addEventListener('change', ()=>{
       applyI18n();
     }
   }else{
-    startGestureLoop();
+    ensureHandsModel().then(()=>startGestureLoop());
     updateProgressText();
   }
 });
-initHandsModel().then(model=>{ handsModel = model; if (camOn) startGestureLoop(); });
+
+
+const stageObserver = ('IntersectionObserver' in window)
+  ? new IntersectionObserver(entries=>{
+      const entry=entries[0];
+      stageInViewport=!!(entry && entry.isIntersecting && entry.intersectionRatio>0.08);
+
+      if(!camOn) return;
+
+      if(stageInViewport && !document.hidden){
+        if(capturing) startMotionBuffer();
+        if(gestureToggle.checked && !capturing){
+          ensureHandsModel().then(()=>startGestureLoop());
+        }
+      }else{
+        pauseMotionBuffer();
+        stopGestureLoop();
+      }
+    },{threshold:[0,0.08,0.25]})
+  : null;
+
+if(stageObserver) stageObserver.observe(stage);
+
+document.addEventListener('visibilitychange',()=>{
+  if(!camOn) return;
+
+  if(document.hidden){
+    pauseMotionBuffer();
+    stopGestureLoop();
+  }else if(stageInViewport){
+    if(capturing) startMotionBuffer();
+    if(gestureToggle.checked && !capturing){
+      ensureHandsModel().then(()=>startGestureLoop());
+    }
+  }
+});
 
 /* ============ Capture sequence ============ */
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
@@ -1590,6 +1889,15 @@ function grabFrameDataURL(){
 
 async function runCountdownAndShoot(slotIndex){
   const dict = I18N[currentLang];
+
+  // iOS: không chạy AI cử chỉ và thu frame cùng lúc.
+  // Bắt đầu buffer đúng lúc đếm ngược để camera live không bị giật khi chờ.
+  stopGestureLoop();
+  motionBufferWriteIndex=0;
+  motionBufferCount=0;
+  motionBufferLastTs=0;
+  startMotionBuffer();
+
   currentCaptureSlot = slotIndex;
   updateCaptureStatus();
   countdownOverlay.classList.add('show');
@@ -1606,6 +1914,8 @@ async function runCountdownAndShoot(slotIndex){
   countdownOverlay.classList.remove('show');
   // flash + capture
   flashEl.classList.add('show');
+  pauseMotionBuffer();
+  releaseMotionClip(motionClips[slotIndex]);
   motionClips[slotIndex] = snapshotMotionClip();
   const dataURL = grabFrameDataURL();
   photos[slotIndex] = dataURL;
@@ -1628,16 +1938,19 @@ btnStartCapture.addEventListener('click', async ()=>{
 
   // Khi bật cử chỉ: chỉ "kích hoạt" chế độ chờ.
   // Mỗi ảnh sau đó phải có một dấu ✌️ mới, không tự chạy liên tiếp.
-  if (gestureToggle.checked && handsModel){
-    if (photos.filter(Boolean).length >= 4) return;
-    gestureSessionActive = true;
-    // Bắt buộc trạng thái tay trở về bình thường trước khi nhận dấu V đầu tiên.
-    gestureRequireRelease = true;
-    peaceHoldStart = null;
-    btnStartCapture.disabled = true;
-    updateProgressText();
-    applyI18n();
-    return;
+  if(gestureToggle.checked){
+    const model=await ensureHandsModel();
+    if(model){
+      if(photos.filter(Boolean).length>=4) return;
+      gestureSessionActive=true;
+      gestureRequireRelease=true;
+      peaceHoldStart=null;
+      btnStartCapture.disabled=true;
+      updateProgressText();
+      applyI18n();
+      startGestureLoop();
+      return;
+    }
   }
 
   // Khi tắt cử chỉ: giữ cách chụp tự động 4 ảnh như trước.
@@ -1677,7 +1990,7 @@ function renderSlot(i){
     del.addEventListener('click', (e)=>{
       e.stopPropagation();
       photos[i] = null;
-      motionClips[i] = null;
+      releaseMotionClip(motionClips[i]); motionClips[i] = null;
       renderSlot(i);
       renderFinal();
       updateProgressText();
@@ -1726,15 +2039,30 @@ function updateProgressText(){
   const count = photos.filter(Boolean).length;
   dotsEls.forEach((d,i)=> d.classList.toggle('filled', !!photos[i]));
 
-  if (count===4){
-    progressText.textContent = dict.progressDone;
-    gestureSessionActive = false;
-    if (!capturing) btnStartCapture.disabled = !camOn;
-  }else if (gestureSessionActive && gestureToggle.checked && !capturing){
-    const next = nextEmptyPhotoIndex();
-    progressText.textContent = dict.gestureWaiting((next < 0 ? count : next) + 1);
+  if(count===4){
+    progressText.textContent=dict.progressDone;
+    gestureSessionActive=false;
+
+    if(!capturing){
+      btnStartCapture.disabled=!camOn;
+
+      // Khi đã đủ 4 ảnh, không tiếp tục chạy camera buffer và AI nhận diện
+      // trong nền. Đây là lúc người dùng thường cuộn xuống xem/lưu kết quả.
+      pauseMotionBuffer();
+      stopGestureLoop();
+    }
   }else{
-    progressText.textContent = count===0 ? dict.progressIdle : dict.progressCount(count);
+    // Khi chưa chụp, chỉ chạy nhận diện cử chỉ; không thu video nền.
+    if(camOn && !capturing && stageInViewport && !document.hidden && gestureToggle.checked){
+      ensureHandsModel().then(()=>startGestureLoop());
+    }
+
+    if(gestureSessionActive && gestureToggle.checked && !capturing){
+      const next=nextEmptyPhotoIndex();
+      progressText.textContent=dict.gestureWaiting((next<0?count:next)+1);
+    }else{
+      progressText.textContent=count===0?dict.progressIdle:dict.progressCount(count);
+    }
   }
 
   btnSave.disabled = count < 4;
@@ -1753,7 +2081,7 @@ fileInput.addEventListener('change', async (e)=>{
     if (idx>=4) break;
     const dataURL = await fileToDataURL(file);
     photos[idx] = dataURL;
-    motionClips[idx] = null; // ảnh tải lên không có đoạn chuyển động riêng
+    releaseMotionClip(motionClips[idx]); motionClips[idx] = null; // ảnh tải lên không có đoạn chuyển động riêng
     renderSlot(idx);
   }
   renderFinal();
@@ -2058,7 +2386,7 @@ async function renderFinal(){
 const VIDEO_OUT_W = IS_IOS_MOBILE ? 960 : CANVAS_W;
 // iPhone/iPad: 960×1440 để sắc nét hơn nhưng vẫn thân thiện với Safari.
 // Android và máy tính: giữ đúng độ phân giải khung gốc 1024×1536.
-const VIDEO_FPS = MOTION_CLIP_FPS;
+const VIDEO_FPS = 30;
 const VIDEO_MAX_BYTES = Number.POSITIVE_INFINITY; // không giới hạn dung lượng: ưu tiên chất lượng hình ảnh
 
 function evenNumber(n){ n=Math.max(2,Math.round(n)); return n%2===0?n:n+1; }
@@ -2121,6 +2449,53 @@ function drawCoverScaled(ctx,img,dx,dy,dw,dh){
   ctx.drawImage(img,sx,sy,sw,sh,dx,dy,dw,dh);
 }
 
+function drawCoverScaledRegion(ctx,img,srcX,srcY,srcW,srcH,dx,dy,dw,dh){
+  if(!srcW || !srcH) return;
+  const scale=Math.max(dw/srcW,dh/srcH)*PHOTO_ZOOM;
+  const cropW=dw/scale;
+  const cropH=dh/scale;
+  const cropX=srcX+(srcW-cropW)/2;
+  const cropY=srcY+(srcH-cropH)/2;
+  ctx.drawImage(img,cropX,cropY,cropW,cropH,dx,dy,dw,dh);
+}
+
+function motionClipLength(clip){
+  if(!clip) return 0;
+  if(clip.type==='sheet') return clip.length||0;
+  return Array.isArray(clip) ? clip.length : 0;
+}
+
+function drawMotionClipCover(ctx,clip,videoFrameIndex,dx,dy,dw,dh){
+  const length=motionClipLength(clip);
+  if(!length) return false;
+
+  const sourceTotal=Math.max(1,getVideoSourceFrames());
+  const clipIndex=Math.min(
+    length-1,
+    Math.floor((videoFrameIndex%sourceTotal)*length/sourceTotal)
+  );
+
+  if(clip.type==='sheet'){
+    const col=clipIndex%clip.cols;
+    const row=Math.floor(clipIndex/clip.cols);
+    drawCoverScaledRegion(
+      ctx,
+      clip.canvas,
+      col*clip.frameW,
+      row*clip.frameH,
+      clip.frameW,
+      clip.frameH,
+      dx,dy,dw,dh
+    );
+    return true;
+  }
+
+  const source=clip[clipIndex];
+  if(!source) return false;
+  drawCoverScaled(ctx,source,dx,dy,dw,dh);
+  return true;
+}
+
 function drawMotionFrameComposition(ctx,w,h,sourceIndex,stillImages){
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
@@ -2130,19 +2505,23 @@ function drawMotionFrameComposition(ctx,w,h,sourceIndex,stillImages){
   const sx=w/CANVAS_W, sy=h/CANVAS_H;
 
   const slotGroups=currentSlotGroups();
-  for (let row=0;row<4;row++){
+  for(let row=0;row<4;row++){
     const clip=motionClips[row];
-    const source=(clip && clip.length) ? clip[sourceIndex % clip.length] : stillImages[row];
-    if (!source) continue;
+    const still=stillImages[row];
+    if(!clip && !still) continue;
+
     ctx.save();
     ctx.filter=currentFilterCss();
-    for (const rect of (slotGroups[row] || [])){
+
+    for(const rect of (slotGroups[row]||[])){
       const [x,y,rw,rh]=rect;
-      drawCoverScaled(
-        ctx,source,
-        (x-PHOTO_BLEED)*sx,(y-PHOTO_BLEED)*sy,
-        (rw+PHOTO_BLEED*2)*sx,(rh+PHOTO_BLEED*2)*sy
-      );
+      const dx=(x-PHOTO_BLEED)*sx;
+      const dy=(y-PHOTO_BLEED)*sy;
+      const dw=(rw+PHOTO_BLEED*2)*sx;
+      const dh=(rh+PHOTO_BLEED*2)*sy;
+
+      const drawn=drawMotionClipCover(ctx,clip,sourceIndex,dx,dy,dw,dh);
+      if(!drawn && still) drawCoverScaled(ctx,still,dx,dy,dw,dh);
     }
     ctx.restore();
   }
@@ -2966,7 +3345,7 @@ btnSaveVideo.addEventListener('click',async()=>{
 
     if(verification){
       const keys=verification.keyframes.map(t=>`${t.toFixed(2)}s`).join(', ');
-      const movingCount=motionClips.filter(c=>c&&c.length).length;
+      const movingCount=motionClips.filter(c=>motionClipLength(c)>0).length;
       const ok=verification.frameOk&&verification.durationOk&&verification.keyOk&&verification.decodeOk;
       const msg=currentLang==='ko'
         ? `${ok?'✅':'⚠️'} 저장 형식: 움직이는 프레임 MP4 / H.264 (${result.codec})\n${w}×${h} · 고화질 · ${verification.duration.toFixed(2)}초 (타이머 ${getMotionClipSeconds()}초 → 총 ${getVideoTotalSeconds()}초) · ${verification.frameCount}프레임 · ${formatBytes(result.blob.size)}\n움직이는 칸: ${movingCount}/4${movingCount<4?' (업로드 사진은 정지)':''}\n키프레임: ${keys}\n재디코딩: ${verification.decoded}/${verification.frameCount}프레임 · ${ok?'검증 통과':'검증 확인 필요'}`
@@ -3073,6 +3452,7 @@ btnRetake.addEventListener('click', ()=>{
   gestureSessionActive = false;
   gestureRequireRelease = false;
   photos = [null,null,null,null];
+  motionClips.forEach(releaseMotionClip);
   motionClips = [null,null,null,null];
   slotsEls.forEach((_,i)=>renderSlot(i));
   renderFinal();
